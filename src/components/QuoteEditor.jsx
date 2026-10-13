@@ -20,7 +20,7 @@ function QuotePreview({ quote }) {
   const credit = quote.payments.credit;
   return (
     <div className="document-preview">
-      <div className="preview-header"><img src="/logo-gran-detail.jfif" alt="Gran Detail"/><div><h2>ORÇAMENTO</h2><p>Nº {String(quote.number).padStart(4, '0')} • {dateBR(quote.issueDate)}</p></div></div>
+      <div className="preview-header"><img src="/logo-gran-detail.png" alt="Gran Detail"/><div><h2>ORÇAMENTO</h2><p>Nº {String(quote.number).padStart(4, '0')} • {dateBR(quote.issueDate)}</p></div></div>
       <div className="preview-details"><div><small>CLIENTE</small><b>{quote.client.name || 'Nome do cliente'}</b><span>{quote.client.phone || 'Telefone / WhatsApp'}</span></div><div><small>VEÍCULO</small><b>{quote.vehicle.model || 'Modelo do veículo'}</b><span>{quote.vehicle.plate || 'Placa'}{quote.vehicle.color ? ` • ${quote.vehicle.color}` : ''}</span></div></div>
       <div className="preview-table"><div><b>Serviço</b><b>Valor</b></div>{quote.services.map((service) => <div key={service.id}><span>{service.description || 'Descrição do serviço'}</span><b>{money(service.cents)}</b></div>)}</div>
       <div className="preview-total"><span>Total dos serviços</span><b>{money(total)}</b></div>

@@ -17,7 +17,7 @@ export default function Layout({ page, onNavigate, children, query, onQuery, quo
     <div className="app-shell">
       <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
         <button className="mobile-close" onClick={() => setOpen(false)} aria-label="Fechar menu"><X size={22} /></button>
-        <div className="brand"><img src="/logo-gran-detail.jfif" alt="Gran Detail Studio Automotivo" /></div>
+        <div className="brand"><img src="/logo-gran-detail.png" alt="Gran Detail Studio Automotivo" /></div>
         <nav>
           <div className="nav-title">Gestão do studio</div>
           {primary.map(([id, label, Icon]) => (

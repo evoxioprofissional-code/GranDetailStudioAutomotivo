@@ -7,8 +7,8 @@ assert.equal(parseMoney('R$ 1.234,56'), 123456);
 assert.equal(money(123456), 'R$ 1.234,56');
 assert.equal(slugify('João da Silva'), 'joao-da-silva');
 
-const logoBytes = await readFile(new URL('../public/logo-gran-detail.jfif', import.meta.url));
-const logo = `data:image/jpeg;base64,${logoBytes.toString('base64')}`;
+const logoBytes = await readFile(new URL('../public/logo-gran-detail.png', import.meta.url));
+const logo = `data:image/png;base64,${logoBytes.toString('base64')}`;
 const quote = {
   number: 99, issueDate: '2026-10-13', validUntil: '2026-10-30',
   client: { name: 'João da Silva', phone: '(11) 99999-9999' },

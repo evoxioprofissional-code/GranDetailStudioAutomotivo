@@ -25,7 +25,7 @@ export function buildQuotePdf(quote, logo) {
     doc.setFillColor(8, 9, 10);
     doc.rect(0, 0, width, 41, 'F');
     doc.restoreGraphicsState();
-    doc.addImage(logo, 'JPEG', 14, 5, 34, 30, undefined, 'FAST');
+    doc.addImage(logo, 'PNG', 14, 5, 34, 30, undefined, 'FAST');
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(17);
@@ -139,7 +139,7 @@ export function buildQuotePdf(quote, logo) {
 }
 
 export async function createQuotePdf(quote, action = 'save') {
-  const logo = await imageAsDataUrl('/logo-gran-detail.jfif');
+  const logo = await imageAsDataUrl('/logo-gran-detail.png');
   const doc = buildQuotePdf(quote, logo);
   const filename = `orcamento-${String(quote.number).padStart(4, '0')}-${slugify(quote.client.name) || 'cliente'}.pdf`;
   if (action === 'preview') {

@@ -2,5 +2,6 @@ node_modules
 dist
 test-results
 tmp
+/logo/
 .DS_Store
 *.local

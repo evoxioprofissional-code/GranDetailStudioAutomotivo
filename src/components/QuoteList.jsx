@@ -8,7 +8,7 @@ const totalOf = (quote) => quote.services.reduce((sum, item) => sum + (Number(it
 export default function QuoteList({ quotes, query, onQuery, onNew, onEdit, onDuplicate, onView, onDelete }) {
   const term = query.trim().toLowerCase();
   const filtered = quotes.filter((quote) => [
-    quote.client.name, quote.client.phone, quote.vehicle.plate, quote.vehicle.model,
+    quote.client.name, quote.client.phone, quote.vehicle.plate, quote.vehicle.model, quote.status,
     `orc-${String(quote.number).padStart(4, '0')}`, String(quote.number),
   ].some((value) => String(value || '').toLowerCase().includes(term)));
 

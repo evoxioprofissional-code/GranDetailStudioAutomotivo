@@ -100,8 +100,8 @@ export default function App({ initialData, onSignOut, userEmail }) {
     setData(next);
     if (!initialData) saveData(next);
   };
-  const navigate = (target) => {
-    setQuery('');
+  const navigate = (target, search = '') => {
+    setQuery(search);
     if (target === 'new-quote') {
       const draft = emptyQuote(nextQuoteNumber(dataRef.current.quotes));
       setActiveQuote(

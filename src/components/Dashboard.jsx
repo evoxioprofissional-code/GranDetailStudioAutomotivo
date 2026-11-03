@@ -1,4 +1,14 @@
-import { ArrowUp, CalendarDays, ExternalLink, Plus } from 'lucide-react';
+import {
+  ArrowRight,
+  CalendarDays,
+  CircleDollarSign,
+  ClipboardList,
+  Clock3,
+  FileText,
+  Plus,
+  Sparkles,
+  Wrench,
+} from 'lucide-react';
 import { dateBR, money, returnCandidates, todayLocal } from '../lib/data';
 import StatusBadge from './StatusBadge';
 
@@ -6,211 +16,284 @@ const totalOf = (quote) =>
   quote.services.reduce((sum, item) => sum + (Number(item.cents) || 0), 0);
 
 export default function Dashboard({ data, onNavigate, onEdit }) {
-  const received = data.payments.reduce(
-    (sum, item) => sum + Number(item.cents || 0),
-    0,
-  );
-  const orderTotal = data.orders
-    .filter((item) => item.status !== 'Cancelado')
-    .reduce((sum, item) => sum + Number(item.cents || 0), 0);
-  const paidForOrders = data.payments
-    .filter((item) => item.orderId)
-    .reduce((sum, item) => sum + Number(item.cents || 0), 0);
-  const outstanding = Math.max(0, orderTotal - paidForOrders);
-  const completed = data.orders.filter(
-    (item) => item.status === 'Concluído',
-  ).length;
-  const openQuotes = data.quotes.filter(
-    (item) => !['Aprovado', 'Recusado'].includes(item.status),
-  ).length;
   const today = todayLocal();
   const agenda = data.appointments
-    .filter((item) => item.date === today)
+    .filter((item) => item.date === today && item.status !== 'Cancelado')
     .sort((a, b) => a.time.localeCompare(b.time));
+  const activeOrders = data.orders.filter(
+    (item) => item.status === 'Em andamento',
+  );
+  const orderKeys = new Set(
+    activeOrders.map((item) => `${item.client}|${item.service}`.toLowerCase()),
+  );
+  const inProgress = [
+    ...activeOrders.map((item) => ({ ...item, source: 'orders' })),
+    ...data.appointments
+      .filter((item) => item.status === 'Em andamento')
+      .filter(
+        (item) =>
+          !orderKeys.has(`${item.client}|${item.service}`.toLowerCase()),
+      )
+      .map((item) => ({ ...item, source: 'agenda' })),
+  ];
+  const sentQuotes = data.quotes
+    .filter((item) => item.status === 'Enviado')
+    .sort((a, b) => b.issueDate.localeCompare(a.issueDate));
+  const dueOrders = data.orders
+    .filter((item) => item.status !== 'Cancelado')
+    .map((order) => ({
+      ...order,
+      due: Math.max(
+        0,
+        Number(order.cents || 0) -
+          data.payments
+            .filter((payment) => payment.orderId === order.id)
+            .reduce((sum, payment) => sum + Number(payment.cents || 0), 0),
+      ),
+    }))
+    .filter((order) => order.due > 0)
+    .sort((a, b) => b.due - a.due);
+  const received = data.payments.reduce(
+    (sum, payment) => sum + Number(payment.cents || 0),
+    0,
+  );
+  const dueTotal = dueOrders.reduce((sum, order) => sum + order.due, 0);
   const returns = returnCandidates(data.appointments, data.orders);
-  const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(`${today}T12:00:00Z`);
-    date.setUTCMonth(date.getUTCMonth() - (5 - index));
-    const key = date.toISOString().slice(0, 7);
-    return {
-      key,
-      label: new Intl.DateTimeFormat('pt-BR', {
-        month: 'short',
-        timeZone: 'UTC',
-      }).format(date),
-      cents: data.payments
-        .filter((item) => item.date?.startsWith(key))
-        .reduce((sum, item) => sum + Number(item.cents || 0), 0),
-    };
-  });
-  const maximum = Math.max(1, ...months.map((month) => month.cents));
-  const recentReceived = months.reduce((sum, month) => sum + month.cents, 0);
 
   return (
-    <>
-      <div className="page-heading dashboard-heading">
-        <div>
-          <h1>Visão geral</h1>
-          <p>{dateBR(today)}</p>
-        </div>
-        <div className="heading-actions">
-          <button
-            className="button secondary"
-            onClick={() => onNavigate('agenda')}
-          >
-            <CalendarDays size={18} /> Abrir agenda
-          </button>
-          <button
-            className="button primary"
-            onClick={() => onNavigate('new-quote')}
-          >
-            <Plus size={18} /> Novo orçamento
-          </button>
-        </div>
-      </div>
-      <section className="stats-grid">
-        <div className="stat">
-          <span>Recebido</span>
-          <strong>{money(received)}</strong>
-          <small className="positive">
-            <ArrowUp size={16} /> pagamentos registrados
-          </small>
-        </div>
-        <div className="stat">
-          <span>Saldo das ordens</span>
-          <strong>{money(outstanding)}</strong>
-          <small>Ordens ativas menos recebimentos vinculados</small>
-        </div>
-        <div className="stat">
-          <span>Serviços concluídos</span>
-          <strong>{completed}</strong>
-          <small>Ordens finalizadas</small>
-        </div>
-        <div className="stat">
-          <span>Orçamentos abertos</span>
-          <strong>{openQuotes}</strong>
-          <small>
-            {money(
-              data.quotes
-                .filter(
-                  (item) => !['Aprovado', 'Recusado'].includes(item.status),
-                )
-                .reduce((sum, item) => sum + totalOf(item), 0),
-            )}{' '}
-            em propostas
-          </small>
-        </div>
-      </section>
-      <div className="dashboard-grid">
-        <section className="panel revenue-panel">
-          <div className="panel-head">
-            <div>
-              <h2>Recebimentos</h2>
-              <p>Últimos seis meses</p>
-            </div>
-            <strong>{money(recentReceived)}</strong>
-          </div>
-          <div className="revenue-bars">
-            {months.map((month) => (
-              <div className="revenue-month" key={month.key}>
-                <div
-                  className="revenue-bar"
-                  style={{
-                    height: `${Math.max(4, (month.cents / maximum) * 100)}%`,
-                  }}
-                  title={`${month.label}: ${money(month.cents)}`}
-                />
-                <small>{month.label}</small>
-              </div>
-            ))}
-          </div>
-        </section>
-        <section className="panel agenda-panel">
-          <div className="panel-head">
-            <h2>Agenda de hoje</h2>
+    <div className="studio-dashboard">
+      <section className="studio-hero">
+        <div className="studio-hero-copy">
+          <span className="studio-eyebrow">
+            <Sparkles size={15} /> GRAN DETAIL · VISÃO GERAL
+          </span>
+          <h1>Seu studio, em movimento.</h1>
+          <p>
+            {dateBR(today)} · {agenda.length}{' '}
+            {agenda.length === 1 ? 'atendimento' : 'atendimentos'} na agenda de
+            hoje
+          </p>
+          <div className="studio-hero-actions">
             <button
-              className="text-button"
+              className="studio-hero-primary"
               onClick={() => onNavigate('agenda')}
             >
-              Abrir agenda <ExternalLink size={15} />
+              <CalendarDays size={18} /> Abrir agenda <ArrowRight size={17} />
+            </button>
+            <button
+              className="studio-hero-secondary"
+              onClick={() => onNavigate('new-quote')}
+            >
+              <Plus size={18} /> Novo orçamento
             </button>
           </div>
-          <div className="agenda-list">
-            {agenda.map((item) => (
-              <div className="agenda-row" key={item.id}>
-                <b>{item.time}</b>
-                <span>
-                  <strong>{item.client}</strong>
-                  <small>{item.vehicle}</small>
-                </span>
-                <span>{item.service}</span>
-                <StatusBadge status={item.status} />
-              </div>
-            ))}
-            {!agenda.length && (
-              <p className="panel-empty">
-                Nenhum atendimento agendado para hoje.
-              </p>
-            )}
+        </div>
+        <div className="studio-hero-summary" aria-label="Resumo do studio">
+          <div>
+            <small>Recebido</small>
+            <strong>{money(received)}</strong>
           </div>
-        </section>
-        <section className="panel returns-panel">
-          <div className="panel-head">
+          <div>
+            <small>Em execução</small>
+            <strong>{inProgress.length}</strong>
+          </div>
+          <div>
+            <small>Saldo das ordens</small>
+            <strong>{money(dueTotal)}</strong>
+          </div>
+        </div>
+      </section>
+
+      <div className="studio-attention">
+        <button onClick={() => onNavigate('quotes', 'Enviado')}>
+          <span className="attention-icon">
+            <FileText size={20} />
+          </span>
+          <span>
+            <small>AGUARDANDO RESPOSTA</small>
+            <strong>
+              {sentQuotes.length}{' '}
+              {sentQuotes.length === 1 ? 'orçamento' : 'orçamentos'}
+            </strong>
+          </span>
+          <ArrowRight size={18} />
+        </button>
+        <button onClick={() => onNavigate('finance')}>
+          <span className="attention-icon">
+            <CircleDollarSign size={20} />
+          </span>
+          <span>
+            <small>A RECEBER NAS ORDENS</small>
+            <strong>{money(dueTotal)}</strong>
+          </span>
+          <ArrowRight size={18} />
+        </button>
+        <button onClick={() => onNavigate('returns')}>
+          <span className="attention-icon">
+            <Clock3 size={20} />
+          </span>
+          <span>
+            <small>RETORNO DE CLIENTES</small>
+            <strong>
+              {returns.length} {returns.length === 1 ? 'contato' : 'contatos'}
+            </strong>
+          </span>
+          <ArrowRight size={18} />
+        </button>
+      </div>
+
+      <div className="studio-dashboard-grid">
+        <section className="studio-panel studio-timeline">
+          <div className="studio-panel-head">
             <div>
-              <h2>Retorno de clientes</h2>
-              <p>
-                {returns.length}{' '}
-                {returns.length === 1
-                  ? 'cliente aguardando contato'
-                  : 'clientes aguardando contato'}
-              </p>
+              <span className="studio-section-label">OPERAÇÃO</span>
+              <h2>Agenda de hoje</h2>
             </div>
-            <button
-              className="text-button"
-              onClick={() => onNavigate('returns')}
-            >
-              Ver retornos <ExternalLink size={15} />
+            <button onClick={() => onNavigate('agenda')}>
+              Ver agenda <ArrowRight size={16} />
             </button>
           </div>
-          <p className="panel-empty">
-            {returns.length
-              ? `${returns[0].client} teve o último atendimento em ${dateBR(returns[0].date)}.`
-              : 'Nenhum retorno pendente no momento.'}
-          </p>
-        </section>
-        <section className="panel recent-panel">
-          <div className="panel-head">
-            <h2>Orçamentos recentes</h2>
-            <button
-              className="text-button"
-              onClick={() => onNavigate('quotes')}
-            >
-              Ver todos <ExternalLink size={15} />
-            </button>
-          </div>
-          <div className="quote-mini-head">
-            <span>Nº</span>
-            <span>Cliente</span>
-            <span>Valor</span>
-            <span>Status</span>
-          </div>
-          {data.quotes.slice(0, 3).map((quote) => (
-            <button
-              className="quote-mini-row"
-              key={quote.id}
-              onClick={() => onEdit(quote.id)}
-            >
-              <b>ORC-{String(quote.number).padStart(4, '0')}</b>
-              <span>{quote.client.name}</span>
-              <b>{money(totalOf(quote))}</b>
-              <StatusBadge status={quote.status} />
-            </button>
-          ))}
-          {!data.quotes.length && (
-            <p className="panel-empty">Nenhum orçamento salvo ainda.</p>
+          {agenda.length ? (
+            <div className="studio-timeline-list">
+              {agenda.map((item) => (
+                <button
+                  className="studio-timeline-item"
+                  key={item.id}
+                  onClick={() => onNavigate('agenda', item.client)}
+                >
+                  <span className="studio-timeline-time">{item.time}</span>
+                  <span className="studio-timeline-track">
+                    <i />
+                  </span>
+                  <span className="studio-timeline-info">
+                    <strong>{item.client}</strong>
+                    <small>
+                      {item.service}
+                      {item.vehicle ? ` · ${item.vehicle}` : ''}
+                    </small>
+                  </span>
+                  <StatusBadge status={item.status} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="studio-empty">
+              <CalendarDays size={26} />
+              <strong>Dia livre na agenda</strong>
+              <p>Adicione o próximo atendimento para organizar a rotina.</p>
+              <button onClick={() => onNavigate('agenda')}>
+                Criar agendamento <ArrowRight size={15} />
+              </button>
+            </div>
           )}
         </section>
+
+        <div className="studio-side-stack">
+          <section className="studio-panel">
+            <div className="studio-panel-head">
+              <div>
+                <span className="studio-section-label">PRODUÇÃO</span>
+                <h2>Em execução</h2>
+              </div>
+              <button onClick={() => onNavigate('orders')}>
+                Ver ordens <ArrowRight size={16} />
+              </button>
+            </div>
+            {inProgress.length ? (
+              <div className="studio-compact-list">
+                {inProgress.slice(0, 3).map((item) => (
+                  <button
+                    key={`${item.source}-${item.id}`}
+                    onClick={() => onNavigate(item.source, item.client)}
+                  >
+                    <span className="studio-compact-icon">
+                      {item.source === 'orders' ? (
+                        <Wrench size={17} />
+                      ) : (
+                        <CalendarDays size={17} />
+                      )}
+                    </span>
+                    <span>
+                      <strong>{item.client}</strong>
+                      <small>{item.service}</small>
+                    </span>
+                    <ArrowRight size={16} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="studio-empty compact">
+                <Wrench size={24} />
+                <p>Nenhum serviço em andamento.</p>
+              </div>
+            )}
+          </section>
+          <section className="studio-panel">
+            <div className="studio-panel-head">
+              <div>
+                <span className="studio-section-label">COMERCIAL</span>
+                <h2>Propostas enviadas</h2>
+              </div>
+              <button onClick={() => onNavigate('quotes')}>
+                Ver todas <ArrowRight size={16} />
+              </button>
+            </div>
+            {sentQuotes.length ? (
+              <div className="studio-compact-list">
+                {sentQuotes.slice(0, 3).map((quote) => (
+                  <button key={quote.id} onClick={() => onEdit(quote.id)}>
+                    <span className="studio-compact-icon">
+                      <ClipboardList size={17} />
+                    </span>
+                    <span>
+                      <strong>{quote.client.name}</strong>
+                      <small>
+                        ORC-{String(quote.number).padStart(4, '0')} ·{' '}
+                        {money(totalOf(quote))}
+                      </small>
+                    </span>
+                    <ArrowRight size={16} />
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="studio-empty compact">
+                <FileText size={24} />
+                <p>Nenhuma proposta aguardando resposta.</p>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
-    </>
+
+      {dueOrders.length > 0 && (
+        <section className="studio-panel studio-due">
+          <div className="studio-panel-head">
+            <div>
+              <span className="studio-section-label">FINANCEIRO</span>
+              <h2>Valores a receber</h2>
+            </div>
+            <button onClick={() => onNavigate('finance')}>
+              Abrir financeiro <ArrowRight size={16} />
+            </button>
+          </div>
+          <div className="studio-due-list">
+            {dueOrders.slice(0, 3).map((order) => (
+              <button
+                key={order.id}
+                onClick={() => onNavigate('orders', order.client)}
+              >
+                <span>
+                  <strong>{order.client}</strong>
+                  <small>{order.service}</small>
+                </span>
+                <b>{money(order.due)}</b>
+                <ArrowRight size={16} />
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
   );
 }

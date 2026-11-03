@@ -15,6 +15,7 @@ import {
   todayLocal,
   whatsappNumber,
 } from '../lib/data';
+import { orderAtStage, stageOfOrder, workflowStages } from '../lib/workflow';
 import StatusBadge from './StatusBadge';
 
 const totalOf = (quote) =>
@@ -25,6 +26,7 @@ const totalOf = (quote) =>
 
 export function OrdersPage({
   orders,
+  appointments,
   quotes,
   clients,
   payments,
@@ -37,19 +39,24 @@ export function OrdersPage({
   const [error, setError] = useState('');
   const term = query.trim().toLowerCase();
   const visible = orders.filter((order) =>
-    [order.client, order.vehicle, order.service, order.status].some((value) =>
-      String(value || '')
-        .toLowerCase()
-        .includes(term),
+    [order.client, order.vehicle, order.service, stageOfOrder(order)].some(
+      (value) =>
+        String(value || '')
+          .toLowerCase()
+          .includes(term),
     ),
   );
 
   async function submit(event) {
     event.preventDefault();
+    const normalized = orderAtStage(draft, stageOfOrder(draft), todayLocal());
     const paid = payments
       .filter((payment) => payment.orderId === draft.id)
       .reduce((sum, payment) => sum + Number(payment.cents || 0), 0);
-    if (paid && (draft.status === 'Cancelado' || draft.cents < paid)) {
+    if (
+      paid &&
+      (normalized.status === 'Cancelado' || normalized.cents < paid)
+    ) {
       setError(
         'A ordem tem recebimentos vinculados. O valor deve cobri-los e a situação não pode ser Cancelado.',
       );
@@ -58,7 +65,7 @@ export function OrdersPage({
     setError('');
     setBusy(true);
     const saved = await onSave('order', {
-      ...draft,
+      ...normalized,
       id: draft.id || crypto.randomUUID(),
     });
     setBusy(false);
@@ -96,6 +103,7 @@ export function OrdersPage({
               vehicle: '',
               service: '',
               cents: 0,
+              stage: 'Recebido',
               status: 'Pendente',
               notes: '',
               quoteId: '',
@@ -123,10 +131,14 @@ export function OrdersPage({
                   {order.service} · {order.vehicle || 'Sem veículo'}
                 </span>
                 <small>
-                  {dateBR(order.date)} · {money(order.cents)}
+                  {dateBR(
+                    appointments.find((item) => item.id === order.appointmentId)
+                      ?.date || order.date,
+                  )}{' '}
+                  · {money(order.cents)}
                 </small>
               </div>
-              <StatusBadge status={order.status} />
+              <StatusBadge status={stageOfOrder(order)} />
               <div className="operation-actions">
                 <button onClick={() => setDraft({ ...order })}>Editar</button>
                 <button
@@ -157,6 +169,12 @@ export function OrdersPage({
                 Fechar
               </button>
             </div>
+            {draft.appointmentId && (
+              <p className="operations-hint">
+                Esta ordem veio da agenda. Altere data e horário no agendamento
+                correspondente.
+              </p>
+            )}
             {!draft.id && (
               <label>
                 Orçamento aprovado (opcional)
@@ -257,6 +275,7 @@ export function OrdersPage({
                 <input
                   type="date"
                   required
+                  disabled={Boolean(draft.appointmentId)}
                   value={draft.date}
                   onChange={(event) =>
                     setDraft({ ...draft, date: event.target.value })
@@ -278,29 +297,24 @@ export function OrdersPage({
               </label>
             </div>
             <label>
-              Situação
+              Etapa do serviço
               <select
-                value={draft.status}
+                value={stageOfOrder(draft)}
                 onChange={(event) =>
-                  setDraft({
-                    ...draft,
-                    status: event.target.value,
-                    completedDate:
-                      event.target.value === 'Concluído'
-                        ? draft.completedDate || todayLocal()
-                        : '',
-                  })
+                  setDraft(
+                    orderAtStage(draft, event.target.value, todayLocal()),
+                  )
                 }
               >
-                <option>Pendente</option>
-                <option>Em andamento</option>
-                <option>Concluído</option>
+                {workflowStages.map((stage) => (
+                  <option key={stage}>{stage}</option>
+                ))}
                 <option>Cancelado</option>
               </select>
             </label>
-            {draft.status === 'Concluído' && (
+            {stageOfOrder(draft) === 'Entregue' && (
               <label>
-                Data de conclusão
+                Data de entrega
                 <input
                   type="date"
                   required

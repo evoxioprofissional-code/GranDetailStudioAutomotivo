@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard';
 import QuoteList from './components/QuoteList';
 import QuoteEditor from './components/QuoteEditor';
 import Agenda from './components/Agenda';
+import Workflow from './components/Workflow';
 import { ClientsPage, VehiclesPage } from './components/Directory';
 import {
   FinancePage,
@@ -26,6 +27,7 @@ import {
   storeQuote,
   storeRecord,
 } from './lib/supabase';
+import { orderAtStage } from './lib/workflow';
 
 function clientsFromData(data) {
   const records = new Map();
@@ -85,6 +87,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
   const dataRef = useRef(data);
   const savingQuote = useRef(false);
   const [page, setPage] = useState('dashboard');
+  const [agendaDate, setAgendaDate] = useState(todayLocal());
   const [activeQuote, setActiveQuote] = useState(null);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState('');
@@ -100,8 +103,9 @@ export default function App({ initialData, onSignOut, userEmail }) {
     setData(next);
     if (!initialData) saveData(next);
   };
-  const navigate = (target, search = '') => {
+  const navigate = (target, search = '', focusDate) => {
     setQuery(search);
+    if (target === 'agenda') setAgendaDate(focusDate || todayLocal());
     if (target === 'new-quote') {
       const draft = emptyQuote(nextQuoteNumber(dataRef.current.quotes));
       setActiveQuote(
@@ -172,6 +176,44 @@ export default function App({ initialData, onSignOut, userEmail }) {
       return false;
     }
   };
+  const moveService = async (item, stage) => {
+    const today = todayLocal();
+    if (item.kind === 'order') {
+      return saveRecord('order', orderAtStage(item.record, stage, today));
+    }
+    if (stage === 'Agendado') {
+      return saveRecord('appointment', {
+        ...item.record,
+        stage,
+        status: 'Confirmado',
+      });
+    }
+    const existingOrder = dataRef.current.orders.find(
+      (order) => order.appointmentId === item.id,
+    );
+    if (existingOrder) {
+      return saveRecord('order', orderAtStage(existingOrder, stage, today));
+    }
+    return saveRecord(
+      'order',
+      orderAtStage(
+        {
+          id: crypto.randomUUID(),
+          appointmentId: item.id,
+          date: item.date,
+          client: item.client,
+          phone: item.phone || '',
+          vehicle: item.vehicle || '',
+          service: item.service,
+          cents: 0,
+          notes: item.notes || '',
+          quoteId: '',
+        },
+        stage,
+        today,
+      ),
+    );
+  };
   const duplicateQuote = (id) => {
     const source = dataRef.current.quotes.find((item) => item.id === id);
     if (!source) return;
@@ -230,10 +272,23 @@ export default function App({ initialData, onSignOut, userEmail }) {
       return (
         <Agenda
           appointments={data.appointments}
+          initialDate={agendaDate}
+          orders={data.orders}
           clients={clients}
           query={query}
           onSave={saveRecord}
           onDelete={removeRecord}
+          onNavigate={navigate}
+        />
+      );
+    if (page === 'workflow')
+      return (
+        <Workflow
+          appointments={data.appointments}
+          orders={data.orders}
+          onMove={moveService}
+          onNavigate={navigate}
+          query={query}
         />
       );
     if (page === 'quotes')
@@ -285,6 +340,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
       return (
         <OrdersPage
           orders={data.orders}
+          appointments={data.appointments}
           quotes={data.quotes}
           clients={clients}
           payments={data.payments}

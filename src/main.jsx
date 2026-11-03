@@ -6,6 +6,7 @@ import './responsive.css';
 import './auth.css';
 import './operations.css';
 import './dashboard.css';
+import './workflow.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

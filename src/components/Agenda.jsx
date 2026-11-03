@@ -1,6 +1,7 @@
 import { CalendarDays, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { dateBR, todayLocal } from '../lib/data';
+import { stageOfAppointment, stageOfOrder } from '../lib/workflow';
 import StatusBadge from './StatusBadge';
 
 const blank = (date) => ({
@@ -16,20 +17,46 @@ const blank = (date) => ({
 
 export default function Agenda({
   appointments,
+  initialDate,
+  orders,
   clients,
   onSave,
   onDelete,
+  onNavigate,
   query,
 }) {
-  const [date, setDate] = useState(todayLocal());
+  const [date, setDate] = useState(initialDate || todayLocal());
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
+  const linkedOrders = new Map(
+    orders
+      .filter((order) => order.appointmentId)
+      .map((order) => [order.appointmentId, order]),
+  );
+  const linkedOrder = (id) => linkedOrders.get(id);
+  const detailsOf = (item) => {
+    const order = linkedOrder(item.id);
+    return order
+      ? {
+          ...item,
+          client: order.client,
+          phone: order.phone,
+          vehicle: order.vehicle,
+          service: order.service,
+        }
+      : item;
+  };
+  const draftOrder = draft?.id ? linkedOrder(draft.id) : null;
   const term = query.trim().toLowerCase();
   const visible = appointments
     .filter(
       (item) =>
         item.date === date &&
-        [item.client, item.vehicle, item.service].some((value) =>
+        [
+          detailsOf(item).client,
+          detailsOf(item).vehicle,
+          detailsOf(item).service,
+        ].some((value) =>
           String(value || '')
             .toLowerCase()
             .includes(term),
@@ -52,6 +79,12 @@ export default function Agenda({
   }
 
   async function remove(item) {
+    if (linkedOrder(item.id)) {
+      window.alert(
+        'Este agendamento tem uma ordem vinculada. Exclua a ordem antes de excluir o agendamento.',
+      );
+      return;
+    }
     if (!window.confirm(`Excluir o agendamento de ${item.client}?`)) return;
     setBusy(true);
     const deleted = await onDelete('appointment', item.id);
@@ -93,20 +126,30 @@ export default function Agenda({
             <div className="operation-row" key={item.id}>
               <div className="operation-time">{item.time}</div>
               <div className="operation-main">
-                <strong>{item.client}</strong>
+                <strong>{detailsOf(item).client}</strong>
                 <span>
-                  {item.vehicle || 'Veículo não informado'} · {item.service}
+                  {detailsOf(item).vehicle || 'Veículo não informado'} ·{' '}
+                  {detailsOf(item).service}
                 </span>
                 {item.notes && <small>{item.notes}</small>}
               </div>
-              <StatusBadge status={item.status} />
+              <StatusBadge
+                status={
+                  linkedOrder(item.id)
+                    ? stageOfOrder(linkedOrder(item.id))
+                    : stageOfAppointment(item)
+                }
+              />
               <div className="operation-actions">
-                <button title="Editar" onClick={() => setDraft({ ...item })}>
+                <button
+                  title="Editar"
+                  onClick={() => setDraft({ ...detailsOf(item) })}
+                >
                   <Pencil size={17} />
                 </button>
                 <button
                   title="Excluir"
-                  disabled={busy}
+                  disabled={busy || Boolean(linkedOrder(item.id))}
                   onClick={() => remove(item)}
                 >
                   <Trash2 size={17} />
@@ -130,6 +173,19 @@ export default function Agenda({
                 Fechar
               </button>
             </div>
+            {draftOrder && (
+              <p className="operations-hint">
+                Serviço vinculado a uma ordem. Edite os detalhes e a etapa pela{' '}
+                <button
+                  className="inline-link"
+                  type="button"
+                  onClick={() => onNavigate('orders', draftOrder.client)}
+                >
+                  ordem de serviço
+                </button>
+                .
+              </p>
+            )}
             <div className="operations-fields two">
               <label>
                 Data
@@ -158,6 +214,7 @@ export default function Agenda({
               Cliente
               <input
                 required
+                disabled={Boolean(draftOrder)}
                 list="agenda-clients"
                 value={draft.client}
                 onChange={(event) => {
@@ -180,6 +237,7 @@ export default function Agenda({
             <label>
               Telefone
               <input
+                disabled={Boolean(draftOrder)}
                 value={draft.phone}
                 onChange={(event) =>
                   setDraft({ ...draft, phone: event.target.value })
@@ -190,6 +248,7 @@ export default function Agenda({
             <label>
               Veículo
               <input
+                disabled={Boolean(draftOrder)}
                 value={draft.vehicle}
                 onChange={(event) =>
                   setDraft({ ...draft, vehicle: event.target.value })
@@ -201,6 +260,7 @@ export default function Agenda({
               Serviço
               <input
                 required
+                disabled={Boolean(draftOrder)}
                 value={draft.service}
                 onChange={(event) =>
                   setDraft({ ...draft, service: event.target.value })
@@ -211,6 +271,7 @@ export default function Agenda({
               Situação
               <select
                 value={draft.status}
+                disabled={Boolean(draftOrder)}
                 onChange={(event) =>
                   setDraft({ ...draft, status: event.target.value })
                 }

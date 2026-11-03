@@ -10,6 +10,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { dateBR, money, returnCandidates, todayLocal } from '../lib/data';
+import { stageOfAppointment, stageOfOrder } from '../lib/workflow';
 import StatusBadge from './StatusBadge';
 
 const totalOf = (quote) =>
@@ -17,22 +18,33 @@ const totalOf = (quote) =>
 
 export default function Dashboard({ data, onNavigate, onEdit }) {
   const today = todayLocal();
+  const orderByAppointment = new Map(
+    data.orders
+      .filter((order) => order.appointmentId)
+      .map((order) => [order.appointmentId, order]),
+  );
   const agenda = data.appointments
-    .filter((item) => item.date === today && item.status !== 'Cancelado')
+    .filter(
+      (item) =>
+        item.date === today &&
+        (orderByAppointment.has(item.id)
+          ? stageOfOrder(orderByAppointment.get(item.id))
+          : stageOfAppointment(item)) !== 'Cancelado',
+    )
     .sort((a, b) => a.time.localeCompare(b.time));
   const activeOrders = data.orders.filter(
-    (item) => item.status === 'Em andamento',
+    (item) => stageOfOrder(item) === 'Em execução',
   );
-  const orderKeys = new Set(
-    activeOrders.map((item) => `${item.client}|${item.service}`.toLowerCase()),
+  const linkedAppointments = new Set(
+    data.orders.map((item) => item.appointmentId).filter(Boolean),
   );
   const inProgress = [
     ...activeOrders.map((item) => ({ ...item, source: 'orders' })),
     ...data.appointments
-      .filter((item) => item.status === 'Em andamento')
       .filter(
         (item) =>
-          !orderKeys.has(`${item.client}|${item.service}`.toLowerCase()),
+          stageOfAppointment(item) === 'Em execução' &&
+          !linkedAppointments.has(item.id),
       )
       .map((item) => ({ ...item, source: 'agenda' })),
   ];
@@ -159,20 +171,35 @@ export default function Dashboard({ data, onNavigate, onEdit }) {
                 <button
                   className="studio-timeline-item"
                   key={item.id}
-                  onClick={() => onNavigate('agenda', item.client)}
+                  onClick={() =>
+                    onNavigate(
+                      'agenda',
+                      orderByAppointment.get(item.id)?.client || item.client,
+                    )
+                  }
                 >
                   <span className="studio-timeline-time">{item.time}</span>
                   <span className="studio-timeline-track">
                     <i />
                   </span>
                   <span className="studio-timeline-info">
-                    <strong>{item.client}</strong>
+                    <strong>
+                      {orderByAppointment.get(item.id)?.client || item.client}
+                    </strong>
                     <small>
-                      {item.service}
-                      {item.vehicle ? ` · ${item.vehicle}` : ''}
+                      {orderByAppointment.get(item.id)?.service || item.service}
+                      {orderByAppointment.get(item.id)?.vehicle || item.vehicle
+                        ? ` · ${orderByAppointment.get(item.id)?.vehicle || item.vehicle}`
+                        : ''}
                     </small>
                   </span>
-                  <StatusBadge status={item.status} />
+                  <StatusBadge
+                    status={
+                      orderByAppointment.has(item.id)
+                        ? stageOfOrder(orderByAppointment.get(item.id))
+                        : stageOfAppointment(item)
+                    }
+                  />
                 </button>
               ))}
             </div>
@@ -195,8 +222,8 @@ export default function Dashboard({ data, onNavigate, onEdit }) {
                 <span className="studio-section-label">PRODUÇÃO</span>
                 <h2>Em execução</h2>
               </div>
-              <button onClick={() => onNavigate('orders')}>
-                Ver ordens <ArrowRight size={16} />
+              <button onClick={() => onNavigate('workflow')}>
+                Ver fluxo <ArrowRight size={16} />
               </button>
             </div>
             {inProgress.length ? (

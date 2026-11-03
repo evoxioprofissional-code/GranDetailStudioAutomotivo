@@ -8,6 +8,7 @@ export default function Workspace() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const [needsPassword, setNeedsPassword] = useState(() => /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash));
   const userId = session?.user.id;
 
   useEffect(() => {
@@ -44,7 +45,29 @@ export default function Workspace() {
     }
   }
 
+  async function setPassword(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    const password = new FormData(event.currentTarget).get('password');
+    const { error: failure } = await supabase.auth.updateUser({ password });
+    setBusy(false);
+    if (failure) return setError('Não foi possível definir a senha. Tente outra senha.');
+    setNeedsPassword(false);
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+  }
+
   if (!supabase) return <App />;
+  if (userId && needsPassword) return <main className="placeholder">
+    <h1>Defina sua senha</h1>
+    <form className="form-card" onSubmit={setPassword}>
+      <div className="form-grid">
+        <label>Nova senha<input name="password" type="password" autoComplete="new-password" minLength="8" required /></label>
+        <button className="button primary" disabled={busy}>Salvar senha</button>
+      </div>
+    </form>
+    {error && <p role="alert">{error}</p>}
+  </main>;
   if (userId && workspace?.userId === userId) {
     return <App key={userId} initialData={workspace.data} onSignOut={async () => {
       const { error: failure } = await supabase.auth.signOut();

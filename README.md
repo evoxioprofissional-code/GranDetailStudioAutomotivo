@@ -31,7 +31,7 @@ Com o Supabase configurado, os orçamentos ficam no banco e cada usuário precis
 ## Supabase
 
 1. A migração `supabase/migrations/20261103150000_create_quotes.sql` já foi aplicada ao projeto informado. Em uma nova instalação, aplique-a com `supabase db push`.
-2. Em Authentication > Users, crie o usuário da equipe com e-mail e senha. Cada conta vê apenas seus próprios orçamentos.
+2. O usuário inicial recebe um convite por e-mail para definir a senha. Abra o link no computador com `npm run dev` em execução em `http://localhost:5173`. Para novas contas, envie um convite em Authentication > Users. Cada conta vê apenas seus próprios orçamentos.
 3. Copie `.env.example` para `.env.local` e preencha a URL do projeto e a chave publicável. Configure as mesmas variáveis na hospedagem, se aplicável, e gere uma nova build.
 4. Entre no app e salve um orçamento. Recarregue a página para verificar a persistência.
 

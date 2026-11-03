@@ -32,4 +32,3 @@ export async function storeQuote(quote) {
   if (error) throw error;
   return unpack(data);
 }
-

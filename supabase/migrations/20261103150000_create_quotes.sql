@@ -11,4 +11,3 @@ grant select, insert (id, payload), update (id, payload) on public.quotes to aut
 create policy "Read own quotes" on public.quotes for select to authenticated using (owner_id = (select auth.uid()));
 create policy "Create own quotes" on public.quotes for insert to authenticated with check (owner_id = (select auth.uid()));
 create policy "Update own quotes" on public.quotes for update to authenticated using (owner_id = (select auth.uid())) with check (owner_id = (select auth.uid()));
-

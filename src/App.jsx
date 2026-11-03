@@ -1,87 +1,352 @@
 import { useMemo, useRef, useState } from 'react';
-import { Construction } from 'lucide-react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import QuoteList from './components/QuoteList';
 import QuoteEditor from './components/QuoteEditor';
-import Clients from './components/Clients';
-import { emptyQuote, loadData, nextQuoteNumber, phoneDigits, saveData } from './lib/data';
+import Agenda from './components/Agenda';
+import { ClientsPage, VehiclesPage } from './components/Directory';
+import {
+  FinancePage,
+  MessagesPage,
+  OrdersPage,
+  ReturnsPage,
+} from './components/Operations';
+import Settings from './components/Settings';
+import {
+  emptyQuote,
+  loadData,
+  nextQuoteNumber,
+  phoneDigits,
+  saveData,
+  todayLocal,
+} from './lib/data';
+import {
+  deleteQuote,
+  deleteRecord,
+  storeQuote,
+  storeRecord,
+} from './lib/supabase';
 
-import { storeQuote } from './lib/supabase';
-
-function clientsFromQuotes(quotes) {
+function clientsFromData(data) {
   const records = new Map();
-  quotes.forEach((quote) => {
-    const phone = phoneDigits(quote.client.phone);
-    const key = phone || quote.client.name.trim().toLowerCase();
-    if (!key || !quote.client.name.trim()) return;
-    const current = records.get(key) || { name: quote.client.name, phone: quote.client.phone, vehicles: [] };
-    const vehicleKey = `${quote.vehicle.model}|${quote.vehicle.plate}`;
-    if ((quote.vehicle.model || quote.vehicle.plate) && !current.vehicles.some((v) => `${v.model}|${v.plate}` === vehicleKey)) current.vehicles.push({ ...quote.vehicle });
+  const add = (name, phone, vehicle) => {
+    if (!name?.trim()) return;
+    const key = phoneDigits(phone) || name.trim().toLowerCase();
+    const current = records.get(key) || {
+      name,
+      phone: phone || '',
+      vehicles: [],
+    };
+    if (vehicle?.model || vehicle?.plate) {
+      const vehicleKey = `${vehicle.model}|${vehicle.plate}`;
+      if (
+        !current.vehicles.some(
+          (item) => `${item.model}|${item.plate}` === vehicleKey,
+        )
+      )
+        current.vehicles.push(vehicle);
+    }
     records.set(key, current);
+  };
+  data.quotes.forEach((quote) =>
+    add(quote.client.name, quote.client.phone, quote.vehicle),
+  );
+  data.appointments.forEach((item) => add(item.client, item.phone));
+  data.orders.forEach((item) => add(item.client, item.phone));
+  data.clients.forEach((client) => {
+    const key = phoneDigits(client.phone) || client.name.trim().toLowerCase();
+    const current = records.get(key) || { vehicles: [] };
+    records.set(key, { ...current, ...client, recordId: client.id });
   });
   return [...records.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export default function App({ initialData, onSignOut }) {
+function vehiclesFromData(data) {
+  const records = new Map();
+  data.quotes.forEach((quote) => {
+    const vehicle = quote.vehicle;
+    if (!vehicle.model && !vehicle.plate) return;
+    const key =
+      vehicle.plate?.trim().toUpperCase() ||
+      `${vehicle.model}|${quote.client.name}`.toLowerCase();
+    records.set(key, { ...vehicle, client: quote.client.name });
+  });
+  data.vehicles.forEach((vehicle) => {
+    const key =
+      vehicle.plate?.trim().toUpperCase() ||
+      `${vehicle.model}|${vehicle.client}`.toLowerCase();
+    records.set(key, { ...records.get(key), ...vehicle, recordId: vehicle.id });
+  });
+  return [...records.values()].sort((a, b) => a.model.localeCompare(b.model));
+}
+
+export default function App({ initialData, onSignOut, userEmail }) {
   const [data, setData] = useState(() => initialData ?? loadData());
-  const saving = useRef(false);
+  const dataRef = useRef(data);
+  const savingQuote = useRef(false);
   const [page, setPage] = useState('dashboard');
   const [activeQuote, setActiveQuote] = useState(null);
   const [query, setQuery] = useState('');
   const [toast, setToast] = useState('');
-  const clients = useMemo(() => clientsFromQuotes(data.quotes), [data.quotes]);
+  const clients = useMemo(() => clientsFromData(data), [data]);
+  const vehicles = useMemo(() => vehiclesFromData(data), [data]);
 
+  const notify = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(''), 3500);
+  };
+  const updateData = (next) => {
+    dataRef.current = next;
+    setData(next);
+    if (!initialData) saveData(next);
+  };
   const navigate = (target) => {
     setQuery('');
     if (target === 'new-quote') {
-      const draft = emptyQuote(nextQuoteNumber(data.quotes));
-      setActiveQuote(initialData ? { ...draft, id: crypto.randomUUID() } : draft);
+      const draft = emptyQuote(nextQuoteNumber(dataRef.current.quotes));
+      setActiveQuote(
+        initialData ? { ...draft, id: crypto.randomUUID() } : draft,
+      );
       setPage('quote-edit');
     } else setPage(target);
   };
   const openQuote = (id, readOnly = false) => {
-    const quote = data.quotes.find((item) => item.id === id);
+    const quote = dataRef.current.quotes.find((item) => item.id === id);
     if (!quote) return;
     setActiveQuote(structuredClone(quote));
     setPage(readOnly ? 'quote-view' : 'quote-edit');
   };
   const persistQuote = async (quote, message, closeEditor = false) => {
-    if (saving.current) return;
-    saving.current = true;
+    if (savingQuote.current) return;
+    savingQuote.current = true;
     try {
       const saved = initialData ? await storeQuote(quote) : quote;
-      const exists = data.quotes.some((item) => item.id === saved.id);
-      const next = { ...data, quotes: exists
-        ? data.quotes.map((item) => item.id === saved.id ? saved : item)
-        : [saved, ...data.quotes] };
-      if (!initialData) saveData(next);
-      setData(next);
-      setToast(message);
+      const current = dataRef.current;
+      const exists = current.quotes.some((item) => item.id === saved.id);
+      updateData({
+        ...current,
+        quotes: exists
+          ? current.quotes.map((item) => (item.id === saved.id ? saved : item))
+          : [saved, ...current.quotes],
+      });
+      notify(message);
       if (closeEditor) setPage('quotes');
-      setTimeout(() => setToast(''), 3200);
     } catch {
-      setToast('Não foi possível salvar o orçamento. Tente novamente.');
+      notify('Não foi possível salvar o orçamento. Tente novamente.');
     } finally {
-      saving.current = false;
+      savingQuote.current = false;
     }
   };
-  const saveQuote = (quote) => persistQuote(quote, 'Orçamento salvo com sucesso.', true);
+  const saveRecord = async (kind, record) => {
+    try {
+      const saved = initialData ? await storeRecord(kind, record) : record;
+      const key = `${kind}s`;
+      const current = dataRef.current;
+      const exists = current[key].some((item) => item.id === saved.id);
+      updateData({
+        ...current,
+        [key]: exists
+          ? current[key].map((item) => (item.id === saved.id ? saved : item))
+          : [...current[key], saved],
+      });
+      notify('Dados salvos com sucesso.');
+      return saved;
+    } catch {
+      notify('Não foi possível salvar. Tente novamente.');
+      return null;
+    }
+  };
+  const removeRecord = async (kind, id) => {
+    try {
+      if (initialData) await deleteRecord(kind, id);
+      const key = `${kind}s`;
+      const current = dataRef.current;
+      updateData({
+        ...current,
+        [key]: current[key].filter((item) => item.id !== id),
+      });
+      notify('Registro excluído.');
+      return true;
+    } catch {
+      notify('Não foi possível excluir. Tente novamente.');
+      return false;
+    }
+  };
   const duplicateQuote = (id) => {
-    const source = data.quotes.find((item) => item.id === id);
+    const source = dataRef.current.quotes.find((item) => item.id === id);
     if (!source) return;
-    const number = nextQuoteNumber(data.quotes);
-    const copy = { ...structuredClone(source), id: `orc-${String(number).padStart(4,'0')}-${crypto.randomUUID().slice(0,6)}`, number, status: 'Rascunho', issueDate: new Date().toISOString().slice(0,10), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), services: source.services.map((s)=>({...s,id:crypto.randomUUID()})) };
+    const number = nextQuoteNumber(dataRef.current.quotes);
+    const copy = {
+      ...structuredClone(source),
+      id: crypto.randomUUID(),
+      number,
+      status: 'Rascunho',
+      issueDate: todayLocal(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      services: source.services.map((service) => ({
+        ...service,
+        id: crypto.randomUUID(),
+      })),
+    };
     persistQuote(copy, 'Orçamento duplicado como rascunho.');
+  };
+  const removeQuote = async (quote) => {
+    if (dataRef.current.orders.some((order) => order.quoteId === quote.id)) {
+      notify(
+        'Este orçamento possui uma ordem de serviço. Exclua a ordem antes.',
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Excluir o orçamento ORC-${String(quote.number).padStart(4, '0')}?`,
+      )
+    )
+      return;
+    try {
+      if (initialData) await deleteQuote(quote.id);
+      const current = dataRef.current;
+      updateData({
+        ...current,
+        quotes: current.quotes.filter((item) => item.id !== quote.id),
+      });
+      notify('Orçamento excluído.');
+    } catch {
+      notify('Não foi possível excluir o orçamento.');
+    }
   };
 
   const content = () => {
-    if (page === 'dashboard') return <Dashboard data={data} onNavigate={navigate} onEdit={(id)=>openQuote(id,true)}/>;
-    if (page === 'quotes') return <QuoteList quotes={data.quotes} query={query} onQuery={setQuery} onNew={()=>navigate('new-quote')} onEdit={(id)=>openQuote(id)} onView={(id)=>openQuote(id,true)} onDuplicate={duplicateQuote}/>;
-    if (page === 'quote-edit' || page === 'quote-view') return <QuoteEditor initialQuote={activeQuote} clients={clients} readOnly={page==='quote-view'} onSave={saveQuote} onCancel={()=>setPage('quotes')}/>;
-    if (page === 'clients') return <Clients clients={clients} quotes={data.quotes} query={query} onQuery={setQuery} onEdit={(id)=>openQuote(id,true)}/>;
-    return <div className="placeholder"><Construction size={42}/><h1>Área em preparação</h1><p>O fluxo de orçamentos está disponível e funcional. Esta área complementar pode ser conectada na próxima etapa.</p><button className="button primary" onClick={()=>navigate('quotes')}>Ir para orçamentos</button></div>;
+    if (page === 'dashboard')
+      return (
+        <Dashboard
+          data={data}
+          onNavigate={navigate}
+          onEdit={(id) => openQuote(id, true)}
+        />
+      );
+    if (page === 'agenda')
+      return (
+        <Agenda
+          appointments={data.appointments}
+          clients={clients}
+          query={query}
+          onSave={saveRecord}
+          onDelete={removeRecord}
+        />
+      );
+    if (page === 'quotes')
+      return (
+        <QuoteList
+          quotes={data.quotes}
+          query={query}
+          onQuery={setQuery}
+          onNew={() => navigate('new-quote')}
+          onEdit={(id) => openQuote(id)}
+          onView={(id) => openQuote(id, true)}
+          onDuplicate={duplicateQuote}
+          onDelete={removeQuote}
+        />
+      );
+    if (page === 'quote-edit' || page === 'quote-view')
+      return (
+        <QuoteEditor
+          initialQuote={activeQuote}
+          clients={clients}
+          readOnly={page === 'quote-view'}
+          onSave={(quote) =>
+            persistQuote(quote, 'Orçamento salvo com sucesso.', true)
+          }
+          onCancel={() => setPage('quotes')}
+        />
+      );
+    if (page === 'clients')
+      return (
+        <ClientsPage
+          clients={clients}
+          quotes={data.quotes}
+          query={query}
+          onSave={saveRecord}
+          onDelete={removeRecord}
+        />
+      );
+    if (page === 'vehicles')
+      return (
+        <VehiclesPage
+          vehicles={vehicles}
+          clients={clients}
+          query={query}
+          onSave={saveRecord}
+          onDelete={removeRecord}
+        />
+      );
+    if (page === 'orders')
+      return (
+        <OrdersPage
+          orders={data.orders}
+          quotes={data.quotes}
+          clients={clients}
+          payments={data.payments}
+          query={query}
+          onSave={saveRecord}
+          onDelete={removeRecord}
+        />
+      );
+    if (page === 'finance')
+      return (
+        <FinancePage
+          payments={data.payments}
+          orders={data.orders}
+          query={query}
+          onSave={saveRecord}
+          onDelete={removeRecord}
+        />
+      );
+    if (page === 'returns')
+      return (
+        <ReturnsPage
+          appointments={data.appointments}
+          orders={data.orders}
+          query={query}
+        />
+      );
+    if (page === 'messages') return <MessagesPage clients={clients} />;
+    if (page === 'settings')
+      return (
+        <Settings
+          email={userEmail}
+          onSignOut={
+            onSignOut
+              ? async () => {
+                  if (!(await onSignOut()))
+                    notify('Não foi possível sair. Tente novamente.');
+                }
+              : undefined
+          }
+        />
+      );
+    return null;
   };
 
-  return <Layout page={page} onNavigate={navigate} query={query} onQuery={setQuery} quoteCount={data.quotes.filter((q)=>!['Aprovado','Recusado'].includes(q.status)).length}>{onSignOut && <button className="button" onClick={async () => { if (!(await onSignOut())) setToast('Não foi possível sair.'); }}>Sair</button>}{toast&&<div className="toast">{toast}</div>}{content()}</Layout>;
+  const openQuotes = data.quotes.filter(
+    (quote) => !['Aprovado', 'Recusado'].includes(quote.status),
+  ).length;
+  return (
+    <Layout
+      page={page}
+      onNavigate={navigate}
+      query={query}
+      onQuery={setQuery}
+      quoteCount={openQuotes}
+      userEmail={userEmail}
+    >
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
+      {content()}
+    </Layout>
+  );
 }

@@ -1,13 +1,17 @@
 # Gran Detail Studio Automotivo
 
-Sistema interno responsivo para gestão de orçamentos da Gran Detail.
+Sistema interno responsivo para gestão do studio da Gran Detail.
 
 ## Recursos
 
-- painel de visão geral no padrão visual da referência;
+- painel com recebimentos, ordens, agenda e orçamentos reais;
+- agenda com criação, edição, situação e exclusão de atendimentos;
+- cadastro de clientes e veículos, inclusive a partir de orçamentos;
 - lista, busca, criação, edição e duplicação de orçamentos;
-- armazenamento persistente no navegador;
-- cadastro derivado de clientes e veículos, com histórico;
+- ordens de serviço com vínculo opcional a orçamentos aprovados;
+- registro de recebimentos com vínculo opcional a ordens de serviço;
+- lista de clientes sem atendimento concluído há mais de 30 dias;
+- preparação de mensagens para WhatsApp;
 - serviços livres, total em centavos e condições alternativas de pagamento;
 - PDF A4 com logo, múltiplas páginas e nome de arquivo descritivo;
 - mensagem pronta para abrir no WhatsApp (o PDF deve ser anexado manualmente).
@@ -26,13 +30,13 @@ npm run test
 npm run build
 ```
 
-Com o Supabase configurado, os orçamentos ficam no banco e cada usuário precisa entrar com e-mail e senha. Sem as variáveis de ambiente, os dados ficam no `localStorage` do navegador.
+Com o Supabase configurado, os dados ficam no banco e cada usuário precisa entrar com e-mail e senha. Sem as variáveis de ambiente, os dados ficam no `localStorage` do navegador.
 
 ## Supabase
 
-1. A migração `supabase/migrations/20261103150000_create_quotes.sql` já foi aplicada ao projeto informado. Em uma nova instalação, aplique-a com `supabase db push`.
-2. O usuário inicial recebe um convite por e-mail para definir a senha. Abra o link no computador com `npm run dev` em execução em `http://localhost:5173`. Para novas contas, envie um convite em Authentication > Users. Cada conta vê apenas seus próprios orçamentos.
+1. As migrações em `supabase/migrations` já foram aplicadas ao projeto informado. Em uma nova instalação, aplique-as com `supabase db push`.
+2. Para novas contas, envie um convite em Authentication > Users. Cada conta vê apenas seus próprios dados.
 3. Copie `.env.example` para `.env.local` e preencha a URL do projeto e a chave publicável. Configure as mesmas variáveis na hospedagem, se aplicável, e gere uma nova build.
 4. Entre no app e salve um orçamento. Recarregue a página para verificar a persistência.
 
-Sem as variáveis, o app funciona no modo local. Ao ativar o Supabase, os orçamentos do navegador não são importados automaticamente. Clientes e veículos continuam derivados dos orçamentos, e a agenda fica vazia no modo conectado.
+Sem as variáveis, o app funciona no modo local. Ao ativar o Supabase, os dados do navegador não são importados automaticamente.

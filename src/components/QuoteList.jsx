@@ -1,11 +1,11 @@
-import { Copy, Download, Edit3, Eye, FileText, MoreHorizontal, Plus, Search } from 'lucide-react';
+import { Copy, Download, Edit3, Eye, FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { dateBR, money } from '../lib/data';
 import { createQuotePdf } from '../lib/pdf';
 import StatusBadge from './StatusBadge';
 
 const totalOf = (quote) => quote.services.reduce((sum, item) => sum + (Number(item.cents) || 0), 0);
 
-export default function QuoteList({ quotes, query, onQuery, onNew, onEdit, onDuplicate, onView }) {
+export default function QuoteList({ quotes, query, onQuery, onNew, onEdit, onDuplicate, onView, onDelete }) {
   const term = query.trim().toLowerCase();
   const filtered = quotes.filter((quote) => [
     quote.client.name, quote.client.phone, quote.vehicle.plate, quote.vehicle.model,
@@ -33,7 +33,7 @@ export default function QuoteList({ quotes, query, onQuery, onNew, onEdit, onDup
                 <button title="Editar" onClick={() => onEdit(quote.id)}><Edit3 size={17}/></button>
                 <button title="Duplicar" onClick={() => onDuplicate(quote.id)}><Copy size={17}/></button>
                 <button title="Baixar PDF" onClick={() => createQuotePdf(quote)}><Download size={17}/></button>
-                <button title="Mais ações"><MoreHorizontal size={17}/></button>
+                <button title="Excluir" onClick={() => onDelete(quote)}><Trash2 size={17}/></button>
               </div>
             </div>
           ))}

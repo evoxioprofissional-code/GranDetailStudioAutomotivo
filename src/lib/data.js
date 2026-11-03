@@ -1,46 +1,17 @@
 const STORAGE_KEY = 'gran-detail-studio-v1';
-const today = new Date().toISOString().slice(0, 10);
+export const todayLocal = () => new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
-const seed = {
-  quotes: [
-    {
-      id: 'orc-0048', number: 48, issueDate: today, validUntil: '', status: 'Enviado',
-      client: { name: 'Pedro Oliveira', phone: '' },
-      vehicle: { model: 'VW Nivus', plate: 'GKL6C73', color: 'Cinza' },
-      services: [{ id: 's1', description: 'Polimento técnico', cents: 120000 }],
-      payments: { pix: { enabled: true, cents: 114000 }, debit: { enabled: true, cents: 120000 }, credit: { enabled: true, cents: 120000, installments: 3 } },
-      notes: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'orc-0047', number: 47, issueDate: today, validUntil: '', status: 'Aprovado',
-      client: { name: 'Ana Souza', phone: '' },
-      vehicle: { model: 'Honda HR-V', plate: 'FGT8J42', color: 'Branco' },
-      services: [{ id: 's2', description: 'Lavagem técnica', cents: 45000 }],
-      payments: { pix: { enabled: true, cents: 45000 }, debit: { enabled: true, cents: 45000 }, credit: { enabled: false, cents: 45000, installments: 1 } },
-      notes: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    },
-    {
-      id: 'orc-0046', number: 46, issueDate: today, validUntil: '', status: 'Rascunho',
-      client: { name: 'Lucas Lima', phone: '' },
-      vehicle: { model: 'Honda Civic', plate: 'RNI4B08', color: 'Preto' },
-      services: [{ id: 's3', description: 'Higienização interna', cents: 98000 }],
-      payments: { pix: { enabled: true, cents: 93000 }, debit: { enabled: true, cents: 98000 }, credit: { enabled: true, cents: 98000, installments: 2 } },
-      notes: '', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
-    },
-  ],
-  clients: [],
-  appointments: [
-    { time: '09:00', client: 'Carlos Mendes', vehicle: 'Toyota Corolla • BRA2E19', service: 'Higienização interna', status: 'Concluído' },
-    { time: '11:00', client: 'Ana Souza', vehicle: 'Honda HR-V • FGT8J42', service: 'Lavagem técnica', status: 'Em andamento' },
-    { time: '14:00', client: 'Lucas Lima', vehicle: 'Honda Civic • RNI4B08', service: 'Polimento técnico', status: 'Confirmado' },
-    { time: '16:30', client: 'Pedro Oliveira', vehicle: 'VW Nivus • GKL6C73', service: 'Avaliação', status: '' },
-  ],
-};
+const seed = { quotes: [], appointments: [], clients: [], vehicles: [], orders: [], payments: [] };
 
 export function loadData() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (stored?.quotes) return stored;
+    if (Array.isArray(stored?.quotes)) return {
+      ...seed, ...stored,
+      appointments: (stored.appointments || []).filter((item) => item.id && item.date),
+    };
   } catch (_) {}
   localStorage.setItem(STORAGE_KEY, JSON.stringify(seed));
   return seed;
@@ -58,7 +29,7 @@ export function emptyQuote(number) {
   return {
     id: `orc-${String(number).padStart(4, '0')}`,
     number,
-    issueDate: new Date().toISOString().slice(0, 10),
+    issueDate: todayLocal(),
     validUntil: '', status: 'Rascunho',
     client: { name: '', phone: '' },
     vehicle: { model: '', plate: '', color: '' },
@@ -85,7 +56,34 @@ export function parseMoney(value) {
 }
 
 export function phoneDigits(phone = '') {
-  return phone.replace(/\D/g, '');
+  return String(phone).replace(/\D/g, '');
+}
+
+export function whatsappNumber(phone) {
+  const digits = phoneDigits(phone);
+  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
+  return '';
+}
+
+export function returnCandidates(appointments, orders) {
+  const latest = new Map();
+  const completed = [
+    ...appointments.filter((item) => item.status === 'Concluído'),
+    ...orders.filter((item) => item.status === 'Concluído')
+      .map((item) => ({ ...item, date: item.completedDate || item.date })),
+  ];
+  for (const item of completed) {
+    if (!item.client || !item.date) continue;
+    const key = phoneDigits(item.phone) || item.client.trim().toLowerCase();
+    if (!key || (latest.get(key)?.date || '') >= item.date) continue;
+    latest.set(key, item);
+  }
+  const cutoff = new Date(`${todayLocal()}T12:00:00Z`);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 30);
+  return [...latest.values()]
+    .filter((item) => item.date < cutoff.toISOString().slice(0, 10))
+    .sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export function slugify(value = '') {

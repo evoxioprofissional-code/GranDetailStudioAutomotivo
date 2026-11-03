@@ -1,5 +1,5 @@
 import {
-  Bell, CalendarDays, Car, ChevronDown, CircleDollarSign, ClipboardList,
+  CalendarDays, Car, ChevronDown, CircleDollarSign,
   FileText, Home, Menu, MessageSquare, Search, Settings, Users, Wrench, X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -10,7 +10,9 @@ const primary = [
   ['finance', 'Financeiro', CircleDollarSign],
 ];
 
-export default function Layout({ page, onNavigate, children, query, onQuery, quoteCount = 0 }) {
+const titles = { dashboard: 'Visão geral', agenda: 'Agenda', clients: 'Clientes', vehicles: 'Veículos', quotes: 'Orçamentos', 'quote-edit': 'Orçamentos', 'quote-view': 'Orçamentos', orders: 'Ordens de serviço', finance: 'Financeiro', returns: 'Retorno de clientes', messages: 'Mensagens', settings: 'Configurações' };
+
+export default function Layout({ page, onNavigate, children, query, onQuery, quoteCount = 0, userEmail }) {
   const [open, setOpen] = useState(false);
   const go = (target) => { onNavigate(target); setOpen(false); };
   return (
@@ -28,22 +30,22 @@ export default function Layout({ page, onNavigate, children, query, onQuery, quo
           ))}
           <div className="nav-divider" />
           <div className="nav-title">Relacionamento</div>
-          <button className="nav-item" onClick={() => go('returns')}><Users size={20} strokeWidth={1.8} /><span>Retorno de clientes</span><b className="nav-count">3</b></button>
+          <button className="nav-item" onClick={() => go('returns')}><Users size={20} strokeWidth={1.8} /><span>Retorno de clientes</span></button>
           <button className="nav-item" onClick={() => go('messages')}><MessageSquare size={20} strokeWidth={1.8} /><span>Mensagens</span></button>
         </nav>
         <div className="sidebar-bottom">
           <button className="nav-item" onClick={() => go('settings')}><Settings size={20} /><span>Configurações</span></button>
-          <div className="user-card"><span className="avatar">GD</span><span><b>Administrador</b><small>Gran Detail</small></span><ChevronDown size={17} /></div>
+          <button className="user-card" onClick={() => go('settings')}><span className="avatar">GD</span><span><b>Minha conta</b><small>{userEmail || 'Gran Detail'}</small></span><ChevronDown size={17} /></button>
         </div>
       </aside>
       {open && <button className="sidebar-backdrop" onClick={() => setOpen(false)} aria-label="Fechar menu" />}
       <main className="main-column">
         <header className="topbar">
           <button className="menu-button" onClick={() => setOpen(true)} aria-label="Abrir menu"><Menu size={22} /></button>
-          <div className="breadcrumb">Studio <span>/</span> <b>{page === 'dashboard' ? 'Visão geral' : page === 'quotes' ? 'Orçamentos' : page === 'clients' ? 'Clientes' : 'Gestão'}</b></div>
-          <label className="global-search"><Search size={18} /><input value={query} onChange={(e) => onQuery(e.target.value)} placeholder="Buscar cliente, placa ou orçamento" /></label>
-          <button className="icon-button" aria-label="Notificações"><Bell size={20} /><i /></button>
-          <span className="top-avatar">GD</span>
+          <div className="breadcrumb">Studio <span>/</span> <b>{titles[page]}</b></div>
+          <label className="global-search"><Search size={18} /><input value={query} onChange={(e) => { if (!['quotes', 'clients', 'vehicles', 'agenda', 'orders', 'finance', 'returns'].includes(page)) onNavigate('quotes'); onQuery(e.target.value); }} placeholder="Buscar no studio" /></label>
+          <button className="icon-button" aria-label="Abrir agenda" onClick={() => go('agenda')}><CalendarDays size={20} /></button>
+          <button className="top-avatar" aria-label="Configurações" onClick={() => go('settings')}>GD</button>
         </header>
         <div className="page-content">{children}</div>
       </main>

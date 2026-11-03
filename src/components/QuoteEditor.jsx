@@ -1,6 +1,6 @@
 import { ArrowLeft, Download, Eye, MessageCircle, Plus, Save, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { dateBR, money, parseMoney, phoneDigits } from '../lib/data';
+import { dateBR, money, parseMoney, whatsappNumber } from '../lib/data';
 import { createQuotePdf } from '../lib/pdf';
 
 function MoneyInput({ value, onChange, disabled }) {
@@ -70,11 +70,10 @@ export default function QuoteEditor({ initialQuote, clients, onSave, onCancel, r
     onSave({ ...quote, updatedAt: new Date().toISOString() });
   };
   const whatsapp = () => {
-    const phone = phoneDigits(quote.client.phone);
+    const phone = whatsappNumber(quote.client.phone);
     if (!phone) return setError('Informe o telefone do cliente para abrir o WhatsApp.');
-    const prefix = phone.startsWith('55') ? phone : `55${phone}`;
-    const text = `Olá, ${quote.client.name}! Seu orçamento nº ${String(quote.number).padStart(4, '0')} da Gran Detail está pronto. Valor dos serviços: ${money(total)}. O PDF foi baixado e pode ser anexado nesta conversa.`;
-    window.open(`https://wa.me/${prefix}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+    const text = `Olá, ${quote.client.name}! Seu orçamento nº ${String(quote.number).padStart(4, '0')} da Gran Detail está pronto. Valor dos serviços: ${money(total)}.`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
   };
 
   return (

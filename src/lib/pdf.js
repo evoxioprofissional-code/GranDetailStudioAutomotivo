@@ -139,12 +139,15 @@ export function buildQuotePdf(quote, logo) {
 }
 
 export async function createQuotePdf(quote, action = 'save') {
+  const previewWindow = action === 'preview' ? window.open('', '_blank') : null;
+  if (previewWindow) previewWindow.opener = null;
   const logo = await imageAsDataUrl('/logo-gran-detail.png');
   const doc = buildQuotePdf(quote, logo);
   const filename = `orcamento-${String(quote.number).padStart(4, '0')}-${slugify(quote.client.name) || 'cliente'}.pdf`;
   if (action === 'preview') {
     const url = URL.createObjectURL(doc.output('blob'));
-    window.open(url, '_blank', 'noopener,noreferrer');
+    if (previewWindow) previewWindow.location.replace(url);
+    else doc.save(filename);
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   } else doc.save(filename);
   return filename;

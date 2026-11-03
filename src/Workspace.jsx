@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, LockKeyhole } from 'lucide-react';
 import App from './App';
-import { loadQuotes, supabase } from './lib/supabase';
+import { loadWorkspace, supabase } from './lib/supabase';
 
 function AuthScreen({ title, description, children, error }) {
   return <main className="auth-shell">
@@ -49,7 +49,7 @@ export default function Workspace() {
   useEffect(() => {
     if (!userId) return;
     let active = true;
-    loadQuotes().then(
+    loadWorkspace().then(
       (data) => { if (active) setWorkspace({ userId, data }); },
       () => { if (active) setError('Não foi possível carregar os orçamentos do Supabase.'); },
     );
@@ -110,7 +110,7 @@ export default function Workspace() {
     </form>
   </AuthScreen>;
   if (userId && workspace?.userId === userId) {
-    return <App key={userId} initialData={workspace.data} onSignOut={async () => {
+    return <App key={userId} initialData={workspace.data} userEmail={session.user.email} onSignOut={async () => {
       const { error: failure } = await supabase.auth.signOut();
       if (failure) return false;
       setWorkspace(null);

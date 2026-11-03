@@ -5,3 +5,4 @@ tmp
 /logo/
 .DS_Store
 *.local
+supabase/.temp/

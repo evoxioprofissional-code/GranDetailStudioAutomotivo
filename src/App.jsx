@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Construction } from 'lucide-react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -6,6 +6,8 @@ import QuoteList from './components/QuoteList';
 import QuoteEditor from './components/QuoteEditor';
 import Clients from './components/Clients';
 import { emptyQuote, loadData, nextQuoteNumber, phoneDigits, saveData } from './lib/data';
+
+import { storeQuote } from './lib/supabase';
 
 function clientsFromQuotes(quotes) {
   const records = new Map();
@@ -21,8 +23,9 @@ function clientsFromQuotes(quotes) {
   return [...records.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export default function App() {
-  const [data, setData] = useState(loadData);
+export default function App({ initialData, onSignOut }) {
+  const [data, setData] = useState(() => initialData ?? loadData());
+  const saving = useRef(false);
   const [page, setPage] = useState('dashboard');
   const [activeQuote, setActiveQuote] = useState(null);
   const [query, setQuery] = useState('');
@@ -32,7 +35,8 @@ export default function App() {
   const navigate = (target) => {
     setQuery('');
     if (target === 'new-quote') {
-      setActiveQuote(emptyQuote(nextQuoteNumber(data.quotes)));
+      const draft = emptyQuote(nextQuoteNumber(data.quotes));
+      setActiveQuote(initialData ? { ...draft, id: crypto.randomUUID() } : draft);
       setPage('quote-edit');
     } else setPage(target);
   };
@@ -42,18 +46,33 @@ export default function App() {
     setActiveQuote(structuredClone(quote));
     setPage(readOnly ? 'quote-view' : 'quote-edit');
   };
-  const saveQuote = (quote) => {
-    const exists = data.quotes.some((item) => item.id === quote.id);
-    const next = { ...data, quotes: exists ? data.quotes.map((item) => item.id === quote.id ? quote : item) : [quote, ...data.quotes] };
-    setData(next); saveData(next); setToast('Orçamento salvo com sucesso.'); setPage('quotes');
-    setTimeout(() => setToast(''), 3200);
+  const persistQuote = async (quote, message, closeEditor = false) => {
+    if (saving.current) return;
+    saving.current = true;
+    try {
+      const saved = initialData ? await storeQuote(quote) : quote;
+      const exists = data.quotes.some((item) => item.id === saved.id);
+      const next = { ...data, quotes: exists
+        ? data.quotes.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...data.quotes] };
+      if (!initialData) saveData(next);
+      setData(next);
+      setToast(message);
+      if (closeEditor) setPage('quotes');
+      setTimeout(() => setToast(''), 3200);
+    } catch {
+      setToast('Não foi possível salvar o orçamento. Tente novamente.');
+    } finally {
+      saving.current = false;
+    }
   };
+  const saveQuote = (quote) => persistQuote(quote, 'Orçamento salvo com sucesso.', true);
   const duplicateQuote = (id) => {
     const source = data.quotes.find((item) => item.id === id);
     if (!source) return;
     const number = nextQuoteNumber(data.quotes);
     const copy = { ...structuredClone(source), id: `orc-${String(number).padStart(4,'0')}-${crypto.randomUUID().slice(0,6)}`, number, status: 'Rascunho', issueDate: new Date().toISOString().slice(0,10), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), services: source.services.map((s)=>({...s,id:crypto.randomUUID()})) };
-    const next = { ...data, quotes: [copy, ...data.quotes] }; setData(next); saveData(next); setToast('Orçamento duplicado como rascunho.'); setTimeout(()=>setToast(''),3200);
+    persistQuote(copy, 'Orçamento duplicado como rascunho.');
   };
 
   const content = () => {
@@ -64,5 +83,5 @@ export default function App() {
     return <div className="placeholder"><Construction size={42}/><h1>Área em preparação</h1><p>O fluxo de orçamentos está disponível e funcional. Esta área complementar pode ser conectada na próxima etapa.</p><button className="button primary" onClick={()=>navigate('quotes')}>Ir para orçamentos</button></div>;
   };
 
-  return <Layout page={page} onNavigate={navigate} query={query} onQuery={setQuery} quoteCount={data.quotes.filter((q)=>!['Aprovado','Recusado'].includes(q.status)).length}>{toast&&<div className="toast">{toast}</div>}{content()}</Layout>;
+  return <Layout page={page} onNavigate={navigate} query={query} onQuery={setQuery} quoteCount={data.quotes.filter((q)=>!['Aprovado','Recusado'].includes(q.status)).length}>{onSignOut && <button className="button" onClick={async () => { if (!(await onSignOut())) setToast('Não foi possível sair.'); }}>Sair</button>}{toast&&<div className="toast">{toast}</div>}{content()}</Layout>;
 }

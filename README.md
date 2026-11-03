@@ -26,4 +26,13 @@ npm run test
 npm run build
 ```
 
-Os dados ficam no `localStorage` do navegador. Para uso multiusuário ou em vários dispositivos, conecte o projeto a um banco de dados e autenticação.
+Com o Supabase configurado, os orçamentos ficam no banco e cada usuário precisa entrar com e-mail e senha. Sem as variáveis de ambiente, os dados ficam no `localStorage` do navegador.
+
+## Supabase
+
+1. A migração `supabase/migrations/20261103150000_create_quotes.sql` já foi aplicada ao projeto informado. Em uma nova instalação, aplique-a com `supabase db push`.
+2. Em Authentication > Users, crie o usuário da equipe com e-mail e senha. Cada conta vê apenas seus próprios orçamentos.
+3. Copie `.env.example` para `.env.local` e preencha a URL do projeto e a chave publicável. Configure as mesmas variáveis na hospedagem, se aplicável, e gere uma nova build.
+4. Entre no app e salve um orçamento. Recarregue a página para verificar a persistência.
+
+Sem as variáveis, o app funciona no modo local. Ao ativar o Supabase, os orçamentos do navegador não são importados automaticamente. Clientes e veículos continuam derivados dos orçamentos, e a agenda fica vazia no modo conectado.

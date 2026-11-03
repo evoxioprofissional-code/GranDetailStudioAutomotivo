@@ -31,6 +31,7 @@ export default function Workspace() {
   const [session, setSession] = useState(undefined);
   const [workspace, setWorkspace] = useState(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [needsPassword, setNeedsPassword] = useState(() => /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash));
@@ -38,7 +39,10 @@ export default function Workspace() {
 
   useEffect(() => {
     if (!supabase) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_, current) => setSession(current));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, current) => {
+      setSession(current);
+      if (event === 'PASSWORD_RECOVERY') setNeedsPassword(true);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -57,6 +61,7 @@ export default function Workspace() {
     const fields = new FormData(event.currentTarget);
     setBusy(true);
     setError('');
+    setNotice('');
     try {
       const { error: failure } = await supabase.auth.signInWithPassword({
         email: fields.get('email'),
@@ -68,6 +73,20 @@ export default function Workspace() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function requestPasswordReset(event) {
+    const email = event.currentTarget.form.elements.email.value.trim();
+    if (!email) return setError('Informe seu e-mail para receber o link de senha.');
+    setBusy(true);
+    setError('');
+    setNotice('');
+    const { error: failure } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    });
+    setBusy(false);
+    if (failure) return setError('Não foi possível enviar o link. Tente novamente.');
+    setNotice('Enviamos um link para definir sua senha. Confira seu e-mail.');
   }
 
   async function setPassword(event) {
@@ -104,8 +123,10 @@ export default function Workspace() {
       <input id="auth-email" name="email" type="email" autoComplete="username" placeholder="seuemail@exemplo.com" required />
       <label htmlFor="auth-password">Senha</label>
       <input id="auth-password" name="password" type="password" autoComplete="current-password" placeholder="Digite sua senha" required />
+      <button className="auth-reset" type="button" disabled={busy} onClick={requestPasswordReset}>Esqueceu sua senha?</button>
       <button className="auth-submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar no studio'} <ArrowRight size={19} /></button>
     </form>}
+    {notice && <p className="auth-notice" role="status">{notice}</p>}
     {session !== null && !error && <div className="auth-loading" role="status"><span /> Carregando…</div>}
     {userId && error && <button className="auth-submit" onClick={() => {
       setError('');

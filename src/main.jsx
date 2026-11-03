@@ -7,6 +7,7 @@ import './auth.css';
 import './operations.css';
 import './dashboard.css';
 import './workflow.css';
+import './agenda.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

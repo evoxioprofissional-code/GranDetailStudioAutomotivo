@@ -1,6 +1,7 @@
 import { Car, MessageCircle, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
 import { money, phoneDigits, whatsappNumber } from '../lib/data';
+import { clientKey, vehicleBelongsToClient } from '../lib/catalog';
 
 const totalOf = (quote) =>
   quote.services.reduce(
@@ -8,7 +9,14 @@ const totalOf = (quote) =>
     0,
   );
 
-export function ClientsPage({ clients, quotes, query, onSave, onDelete }) {
+export function ClientsPage({
+  clients,
+  vehicles,
+  quotes,
+  query,
+  onSave,
+  onDelete,
+}) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const term = query.trim().toLowerCase();
@@ -32,6 +40,17 @@ export function ClientsPage({ clients, quotes, query, onSave, onDelete }) {
   }
 
   async function remove(client) {
+    if (
+      vehicles.some(
+        (vehicle) =>
+          vehicle.recordId && vehicleBelongsToClient(vehicle, client),
+      )
+    ) {
+      window.alert(
+        'Este cliente tem veículos vinculados. Exclua ou transfira os veículos antes.',
+      );
+      return;
+    }
     if (!window.confirm(`Excluir o cadastro de ${client.name}?`)) return;
     setBusy(true);
     await onDelete('client', client.id);
@@ -62,6 +81,9 @@ export function ClientsPage({ clients, quotes, query, onSave, onDelete }) {
             </strong>
           </div>
           {visible.map((client) => {
+            const vehicleCount = vehicles.filter((vehicle) =>
+              vehicleBelongsToClient(vehicle, client),
+            ).length;
             const history = quotes.filter((quote) => {
               const phone = phoneDigits(client.phone);
               return phone
@@ -77,7 +99,9 @@ export function ClientsPage({ clients, quotes, query, onSave, onDelete }) {
                 <div className="operation-main">
                   <strong>{client.name}</strong>
                   <span>
-                    {client.phone || 'Sem telefone'} · {history.length}{' '}
+                    {client.phone || 'Sem telefone'} · {vehicleCount}{' '}
+                    {vehicleCount === 1 ? 'veículo' : 'veículos'} ·{' '}
+                    {history.length}{' '}
                     {history.length === 1 ? 'orçamento' : 'orçamentos'}
                   </span>
                   <small>
@@ -193,7 +217,14 @@ export function ClientsPage({ clients, quotes, query, onSave, onDelete }) {
   );
 }
 
-export function VehiclesPage({ vehicles, clients, query, onSave, onDelete }) {
+export function VehiclesPage({
+  vehicles,
+  clients,
+  query,
+  onSave,
+  onDelete,
+  onNavigate,
+}) {
   const [draft, setDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const term = query.trim().toLowerCase();
@@ -209,8 +240,9 @@ export function VehiclesPage({ vehicles, clients, query, onSave, onDelete }) {
   async function submit(event) {
     event.preventDefault();
     setBusy(true);
+    const { clientKey: _clientKey, ...record } = draft;
     const saved = await onSave('vehicle', {
-      ...draft,
+      ...record,
       id: draft.id || crypto.randomUUID(),
     });
     setBusy(false);
@@ -234,7 +266,15 @@ export function VehiclesPage({ vehicles, clients, query, onSave, onDelete }) {
         <button
           className="button primary"
           onClick={() =>
-            setDraft({ model: '', plate: '', color: '', client: '' })
+            setDraft({
+              model: '',
+              plate: '',
+              color: '',
+              client: '',
+              clientId: '',
+              clientPhone: '',
+              clientKey: '',
+            })
           }
         >
           <Plus size={18} /> Novo veículo
@@ -261,12 +301,27 @@ export function VehiclesPage({ vehicles, clients, query, onSave, onDelete }) {
                   {vehicle.plate || 'Sem placa'} ·{' '}
                   {vehicle.color || 'Cor não informada'}
                 </span>
-                <small>{vehicle.client || 'Cliente não informado'}</small>
+                <small>
+                  {clients.find((client) =>
+                    vehicleBelongsToClient(vehicle, client),
+                  )?.name ||
+                    vehicle.client ||
+                    'Cliente não informado'}
+                </small>
               </div>
               <div className="operation-actions">
                 <button
                   title="Editar"
-                  onClick={() => setDraft({ ...vehicle, id: vehicle.recordId })}
+                  onClick={() => {
+                    const owner = clients.find((client) =>
+                      vehicleBelongsToClient(vehicle, client),
+                    );
+                    setDraft({
+                      ...vehicle,
+                      id: vehicle.recordId,
+                      clientKey: owner ? clientKey(owner) : '',
+                    });
+                  }}
                 >
                   <Pencil size={17} />
                 </button>
@@ -332,19 +387,43 @@ export function VehiclesPage({ vehicles, clients, query, onSave, onDelete }) {
             </label>
             <label>
               Cliente
-              <input
-                list="vehicle-clients"
-                value={draft.client}
-                onChange={(event) =>
-                  setDraft({ ...draft, client: event.target.value })
-                }
-              />
-              <datalist id="vehicle-clients">
+              <select
+                required
+                value={draft.clientKey}
+                onChange={(event) => {
+                  const owner = clients.find(
+                    (client) => clientKey(client) === event.target.value,
+                  );
+                  setDraft({
+                    ...draft,
+                    clientKey: event.target.value,
+                    client: owner?.name || '',
+                    clientId: owner?.recordId || '',
+                    clientPhone: owner?.phone || '',
+                  });
+                }}
+              >
+                <option value="">Selecione o cliente</option>
                 {clients.map((client) => (
-                  <option key={client.id || client.name} value={client.name} />
+                  <option key={clientKey(client)} value={clientKey(client)}>
+                    {client.name}
+                    {client.phone ? ` · ${client.phone}` : ''}
+                  </option>
                 ))}
-              </datalist>
+              </select>
             </label>
+            {!clients.length && (
+              <p className="operations-hint">
+                Cadastre um cliente antes de adicionar o veículo.{' '}
+                <button
+                  type="button"
+                  className="inline-link"
+                  onClick={() => onNavigate('clients')}
+                >
+                  Abrir clientes
+                </button>
+              </p>
+            )}
             <button className="button primary" disabled={busy}>
               {busy ? 'Salvando…' : 'Salvar veículo'}
             </button>

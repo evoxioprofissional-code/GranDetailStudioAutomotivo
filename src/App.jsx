@@ -71,7 +71,11 @@ function vehiclesFromData(data) {
     const key =
       vehicle.plate?.trim().toUpperCase() ||
       `${vehicle.model}|${quote.client.name}`.toLowerCase();
-    records.set(key, { ...vehicle, client: quote.client.name });
+    records.set(key, {
+      ...vehicle,
+      client: quote.client.name,
+      clientPhone: quote.client.phone,
+    });
   });
   data.vehicles.forEach((vehicle) => {
     const key =
@@ -275,6 +279,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
           initialDate={agendaDate}
           orders={data.orders}
           clients={clients}
+          vehicles={vehicles}
           query={query}
           onSave={saveRecord}
           onDelete={removeRecord}
@@ -320,6 +325,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
       return (
         <ClientsPage
           clients={clients}
+          vehicles={vehicles}
           quotes={data.quotes}
           query={query}
           onSave={saveRecord}
@@ -334,6 +340,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
           query={query}
           onSave={saveRecord}
           onDelete={removeRecord}
+          onNavigate={navigate}
         />
       );
     if (page === 'orders')

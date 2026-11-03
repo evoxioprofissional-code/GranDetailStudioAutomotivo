@@ -5,7 +5,7 @@ Sistema interno responsivo para gestão do studio da Gran Detail.
 ## Recursos
 
 - painel com recebimentos, ordens, agenda e orçamentos reais;
-- agenda com criação, edição, situação e exclusão de atendimentos;
+- agenda em calendário mensal com seleção de clientes e veículos cadastrados, inclusive quando o cliente tem mais de um carro;
 - fluxo visual de serviços em cinco etapas, ligado à agenda e às ordens de serviço;
 - cadastro de clientes e veículos, inclusive a partir de orçamentos;
 - lista, busca, criação, edição e duplicação de orçamentos;

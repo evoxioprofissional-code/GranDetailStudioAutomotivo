@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import Workspace from './Workspace';
 import './styles.css';
 import './responsive.css';
+import './auth.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

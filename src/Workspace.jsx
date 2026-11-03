@@ -1,6 +1,31 @@
 import { useEffect, useState } from 'react';
+import { ArrowRight, LockKeyhole } from 'lucide-react';
 import App from './App';
 import { loadQuotes, supabase } from './lib/supabase';
+
+function AuthScreen({ title, description, children, error }) {
+  return <main className="auth-shell">
+    <section className="auth-brand" aria-label="Gran Detail Studio Automotivo">
+      <div className="auth-brand-top"><span className="auth-mark">GD</span><span>STUDIO AUTOMOTIVO</span></div>
+      <div className="auth-brand-center">
+        <div className="auth-logo-frame"><img src="/logo-gran-detail.png" alt="Gran Detail" /></div>
+        <span className="auth-brand-line" />
+        <p>Gestão do studio em um só lugar.</p>
+      </div>
+      <span className="auth-brand-foot">GRAN DETAIL · ÁREA INTERNA</span>
+    </section>
+    <section className="auth-content">
+      <div className="auth-content-inner">
+        <div className="auth-eyebrow"><LockKeyhole size={15} strokeWidth={1.8} /> ACESSO À EQUIPE</div>
+        <h1>{title}</h1>
+        <p className="auth-description">{description}</p>
+        {children}
+        {error && <p className="auth-error" role="alert">{error}</p>}
+      </div>
+      <p className="auth-content-foot">Gran Detail Studio Automotivo</p>
+    </section>
+  </main>;
+}
 
 export default function Workspace() {
   const [session, setSession] = useState(undefined);
@@ -58,16 +83,13 @@ export default function Workspace() {
   }
 
   if (!supabase) return <App />;
-  if (userId && needsPassword) return <main className="placeholder">
-    <h1>Defina sua senha</h1>
-    <form className="form-card" onSubmit={setPassword}>
-      <div className="form-grid">
-        <label>Nova senha<input name="password" type="password" autoComplete="new-password" minLength="8" required /></label>
-        <button className="button primary" disabled={busy}>Salvar senha</button>
-      </div>
+  if (userId && needsPassword) return <AuthScreen title="Defina sua senha" description="Crie uma senha para acessar seu espaço de trabalho." error={error}>
+    <form className="auth-form" onSubmit={setPassword}>
+      <label htmlFor="new-password">Nova senha</label>
+      <input id="new-password" name="password" type="password" autoComplete="new-password" minLength="8" placeholder="Mínimo de 8 caracteres" required />
+      <button className="auth-submit" disabled={busy}>Salvar senha <ArrowRight size={19} /></button>
     </form>
-    {error && <p role="alert">{error}</p>}
-  </main>;
+  </AuthScreen>;
   if (userId && workspace?.userId === userId) {
     return <App key={userId} initialData={workspace.data} onSignOut={async () => {
       const { error: failure } = await supabase.auth.signOut();
@@ -76,20 +98,18 @@ export default function Workspace() {
       return true;
     }} />;
   }
-  return <main className="placeholder">
-    <h1>Gran Detail</h1>
-    {session === null && <form className="form-card" onSubmit={signIn}>
-      <div className="form-grid">
-        <label>E-mail<input name="email" type="email" autoComplete="username" required /></label>
-        <label>Senha<input name="password" type="password" autoComplete="current-password" required /></label>
-        <button className="button primary" disabled={busy}>Entrar</button>
-      </div>
+  return <AuthScreen title={session === null ? 'Bem-vindo de volta.' : 'Preparando seu espaço.'} description={session === null ? 'Entre com suas credenciais para continuar.' : 'Carregando seus orçamentos e informações.'} error={error}>
+    {session === null && <form className="auth-form" onSubmit={signIn}>
+      <label htmlFor="auth-email">E-mail</label>
+      <input id="auth-email" name="email" type="email" autoComplete="username" placeholder="seuemail@exemplo.com" required />
+      <label htmlFor="auth-password">Senha</label>
+      <input id="auth-password" name="password" type="password" autoComplete="current-password" placeholder="Digite sua senha" required />
+      <button className="auth-submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar no studio'} <ArrowRight size={19} /></button>
     </form>}
-    {error && <p role="alert">{error}</p>}
-    {session !== null && !error && <p>Carregando…</p>}
-    {userId && error && <button className="button primary" onClick={() => {
+    {session !== null && !error && <div className="auth-loading" role="status"><span /> Carregando…</div>}
+    {userId && error && <button className="auth-submit" onClick={() => {
       setError('');
       setAttempt(attempt + 1);
     }}>Tentar novamente</button>}
-  </main>;
+  </AuthScreen>;
 }

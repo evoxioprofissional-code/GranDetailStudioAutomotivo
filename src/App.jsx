@@ -347,7 +347,7 @@ export default function App({ initialData, onSignOut, userEmail, userId }) {
       return (
         <OrdersPage
           orders={data.orders}
-          userId={userId}
+          userId={data.workspaceOwnerId || userId}
           appointments={data.appointments}
           quotes={data.quotes}
           clients={clients}

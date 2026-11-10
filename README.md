@@ -37,7 +37,7 @@ Com o Supabase configurado, os dados ficam no banco e cada usuário precisa entr
 ## Supabase
 
 1. As migrações em `supabase/migrations` já foram aplicadas ao projeto informado. Em uma nova instalação, aplique-as com `supabase db push`.
-2. Para novas contas, envie um convite em Authentication > Users. Cada conta vê apenas seus próprios dados.
+2. Para novas contas, envie um convite em Authentication > Users. Por padrão, cada conta vê apenas seus próprios dados. Uma conta administradora pode ser vinculada ao espaço de outra conta em `public.studio_memberships` por uma operação administrativa no banco; o usuário e o proprietário precisam existir em `auth.users`. O vínculo concede acesso completo aos mesmos registros e fotos.
 3. Copie `.env.example` para `.env.local` e preencha a URL do projeto e a chave publicável. Configure as mesmas variáveis na hospedagem, se aplicável, e gere uma nova build.
 4. Entre no app e salve um orçamento. Recarregue a página para verificar a persistência.
 

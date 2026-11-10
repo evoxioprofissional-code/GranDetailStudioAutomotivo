@@ -21,6 +21,8 @@ async function timedQuery(query) {
 }
 
 export async function loadWorkspace() {
+  const { data: ownerId, error: ownerError } = await supabase.rpc('studio_owner_id');
+  if (ownerError) throw ownerError;
   const quotes = [];
   const pageSize = 500;
   let before;
@@ -62,7 +64,7 @@ export async function loadWorkspace() {
     if (data.length < pageSize) break;
     offset += pageSize;
   }
-  return { quotes, ...records };
+  return { workspaceOwnerId: ownerId, quotes, ...records };
 }
 
 function unpack({ id, number, payload }) {

@@ -8,6 +8,7 @@ import './operations.css';
 import './dashboard.css';
 import './workflow.css';
 import './agenda.css';
+import './order-photos.css';
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

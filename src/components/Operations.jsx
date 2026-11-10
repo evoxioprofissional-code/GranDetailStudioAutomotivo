@@ -1,4 +1,5 @@
 import {
+  Camera,
   CircleDollarSign,
   Copy,
   MessageCircle,
@@ -16,6 +17,8 @@ import {
   whatsappNumber,
 } from '../lib/data';
 import { orderAtStage, stageOfOrder, workflowStages } from '../lib/workflow';
+import { removePhotoFiles } from '../lib/orderPhotos';
+import OrderPhotos from './OrderPhotos';
 import StatusBadge from './StatusBadge';
 
 const totalOf = (quote) =>
@@ -26,6 +29,7 @@ const totalOf = (quote) =>
 
 export function OrdersPage({
   orders,
+  userId,
   appointments,
   quotes,
   clients,
@@ -82,7 +86,17 @@ export function OrdersPage({
     if (!window.confirm(`Excluir a ordem de serviço de ${order.client}?`))
       return;
     setBusy(true);
-    await onDelete('order', order.id);
+    const deleted = await onDelete('order', order.id);
+    if (deleted && draft?.id === order.id) setDraft(null);
+    if (deleted && order.photos?.length) {
+      try {
+        await removePhotoFiles(order.photos);
+      } catch {
+        window.alert(
+          'A ordem foi excluída, mas alguns arquivos de foto não puderam ser removidos.',
+        );
+      }
+    }
     setBusy(false);
   }
 
@@ -136,11 +150,32 @@ export function OrdersPage({
                       ?.date || order.date,
                   )}{' '}
                   · {money(order.cents)}
+                  {order.photos?.length > 0 && (
+                    <>
+                      {' '}
+                      · <Camera size={12} /> {order.photos.length}{' '}
+                      {order.photos.length === 1 ? 'foto' : 'fotos'}
+                    </>
+                  )}
                 </small>
               </div>
               <StatusBadge status={stageOfOrder(order)} />
               <div className="operation-actions">
                 <button onClick={() => setDraft({ ...order })}>Editar</button>
+                <button
+                  onClick={() => {
+                    setDraft({ ...order });
+                    setTimeout(
+                      () =>
+                        document
+                          .getElementById('order-photos')
+                          ?.scrollIntoView({ behavior: 'smooth' }),
+                      80,
+                    );
+                  }}
+                >
+                  <Camera size={15} /> Fotos
+                </button>
                 <button
                   title="Excluir"
                   disabled={busy}
@@ -346,6 +381,20 @@ export function OrdersPage({
           </form>
         )}
       </div>
+      {draft?.id && orders.some((order) => order.id === draft.id) && (
+        <OrderPhotos
+          order={orders.find((order) => order.id === draft.id)}
+          userId={userId}
+          onSave={onSave}
+          onUpdated={(saved) =>
+            setDraft((current) =>
+              current?.id === saved.id
+                ? { ...current, photos: saved.photos }
+                : current,
+            )
+          }
+        />
+      )}
     </>
   );
 }

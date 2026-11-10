@@ -1,7 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
-const { VITE_SUPABASE_URL: url, VITE_SUPABASE_PUBLISHABLE_KEY: key } = import.meta.env;
+const { VITE_SUPABASE_URL: url, VITE_SUPABASE_PUBLISHABLE_KEY: key } =
+  import.meta.env;
 export const supabase = url && key ? createClient(url, key) : null;
+
+export function clearStoredSession() {
+  if (!url) return;
+  const projectRef = new URL(url).hostname.split('.')[0];
+  localStorage.removeItem(`sb-${projectRef}-auth-token`);
+}
+
+async function timedQuery(query) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12000);
+  try {
+    return await query.abortSignal(controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export async function loadWorkspace() {
   const quotes = [];
@@ -9,23 +26,39 @@ export async function loadWorkspace() {
   let before;
 
   while (true) {
-    let query = supabase.from('quotes').select('id, number, payload')
-      .order('number', { ascending: false }).limit(pageSize);
+    let query = supabase
+      .from('quotes')
+      .select('id, number, payload')
+      .order('number', { ascending: false })
+      .limit(pageSize);
     if (before !== undefined) query = query.lt('number', before);
-    const { data, error } = await query;
+    const { data, error } = await timedQuery(query);
     if (error) throw error;
     if (!data.length) break;
     quotes.push(...data.map(unpack));
     before = data.at(-1).number;
   }
 
-  const records = { appointments: [], clients: [], vehicles: [], orders: [], payments: [] };
+  const records = {
+    appointments: [],
+    clients: [],
+    vehicles: [],
+    orders: [],
+    payments: [],
+  };
   let offset = 0;
   while (true) {
-    const { data, error } = await supabase.from('studio_records')
-      .select('kind, id, payload').order('created_at').order('id').range(offset, offset + pageSize - 1);
+    const { data, error } = await timedQuery(
+      supabase
+        .from('studio_records')
+        .select('kind, id, payload')
+        .order('created_at')
+        .order('id')
+        .range(offset, offset + pageSize - 1),
+    );
     if (error) throw error;
-    for (const row of data) records[`${row.kind}s`].push({ ...row.payload, id: row.id });
+    for (const row of data)
+      records[`${row.kind}s`].push({ ...row.payload, id: row.id });
     if (data.length < pageSize) break;
     offset += pageSize;
   }
@@ -38,9 +71,11 @@ function unpack({ id, number, payload }) {
 
 export async function storeQuote(quote) {
   const { id, ...payload } = quote;
-  const { data, error } = await supabase.from('quotes')
+  const { data, error } = await supabase
+    .from('quotes')
     .upsert({ id, payload }, { onConflict: 'owner_id,id' })
-    .select('id, number, payload').single();
+    .select('id, number, payload')
+    .single();
   if (error) throw error;
   return unpack(data);
 }
@@ -52,14 +87,20 @@ export async function deleteQuote(id) {
 
 export async function storeRecord(kind, record) {
   const { id, ...payload } = record;
-  const { data, error } = await supabase.from('studio_records')
+  const { data, error } = await supabase
+    .from('studio_records')
     .upsert({ kind, id, payload }, { onConflict: 'owner_id,kind,id' })
-    .select('id, payload').single();
+    .select('id, payload')
+    .single();
   if (error) throw error;
   return { ...data.payload, id: data.id };
 }
 
 export async function deleteRecord(kind, id) {
-  const { error } = await supabase.from('studio_records').delete().eq('kind', kind).eq('id', id);
+  const { error } = await supabase
+    .from('studio_records')
+    .delete()
+    .eq('kind', kind)
+    .eq('id', id);
   if (error) throw error;
 }

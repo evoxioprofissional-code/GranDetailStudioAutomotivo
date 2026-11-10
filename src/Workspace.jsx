@@ -1,30 +1,56 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, LockKeyhole } from 'lucide-react';
 import App from './App';
-import { loadWorkspace, supabase } from './lib/supabase';
+import { clearStoredSession, loadWorkspace, supabase } from './lib/supabase';
+
+function withTimeout(promise, milliseconds) {
+  let timer;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error('timeout')), milliseconds);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 function AuthScreen({ title, description, children, error }) {
-  return <main className="auth-shell">
-    <section className="auth-brand" aria-label="Gran Detail Studio Automotivo">
-      <div className="auth-brand-top"><span className="auth-mark">GD</span><span>STUDIO AUTOMOTIVO</span></div>
-      <div className="auth-brand-center">
-        <div className="auth-logo-frame"><img src="/logo-gran-detail.png" alt="Gran Detail" /></div>
-        <span className="auth-brand-line" />
-        <p>Gestão do studio em um só lugar.</p>
-      </div>
-      <span className="auth-brand-foot">GRAN DETAIL · ÁREA INTERNA</span>
-    </section>
-    <section className="auth-content">
-      <div className="auth-content-inner">
-        <div className="auth-eyebrow"><LockKeyhole size={15} strokeWidth={1.8} /> ACESSO À EQUIPE</div>
-        <h1>{title}</h1>
-        <p className="auth-description">{description}</p>
-        {children}
-        {error && <p className="auth-error" role="alert">{error}</p>}
-      </div>
-      <p className="auth-content-foot">Gran Detail Studio Automotivo</p>
-    </section>
-  </main>;
+  return (
+    <main className="auth-shell">
+      <section
+        className="auth-brand"
+        aria-label="Gran Detail Studio Automotivo"
+      >
+        <div className="auth-brand-top">
+          <span className="auth-mark">GD</span>
+          <span>STUDIO AUTOMOTIVO</span>
+        </div>
+        <div className="auth-brand-center">
+          <div className="auth-logo-frame">
+            <img src="/logo-gran-detail.png" alt="Gran Detail" />
+          </div>
+          <span className="auth-brand-line" />
+          <p>Gestão do studio em um só lugar.</p>
+        </div>
+        <span className="auth-brand-foot">GRAN DETAIL · ÁREA INTERNA</span>
+      </section>
+      <section className="auth-content">
+        <div className="auth-content-inner">
+          <div className="auth-eyebrow">
+            <LockKeyhole size={15} strokeWidth={1.8} /> ACESSO À EQUIPE
+          </div>
+          <h1>{title}</h1>
+          <p className="auth-description">{description}</p>
+          {children}
+          {error && (
+            <p className="auth-error" role="alert">
+              {error}
+            </p>
+          )}
+        </div>
+        <p className="auth-content-foot">Gran Detail Studio Automotivo</p>
+      </section>
+    </main>
+  );
 }
 
 export default function Workspace() {
@@ -34,26 +60,67 @@ export default function Workspace() {
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [needsPassword, setNeedsPassword] = useState(() => /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash));
+  const [authTimedOut, setAuthTimedOut] = useState(false);
+  const [needsPassword, setNeedsPassword] = useState(() =>
+    /(?:^|[&#])type=(?:invite|recovery)(?:&|$)/.test(window.location.hash),
+  );
   const userId = session?.user.id;
 
   useEffect(() => {
     if (!supabase) return;
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, current) => {
+    let active = true;
+    const timer = setTimeout(() => {
+      if (active) setAuthTimedOut(true);
+    }, 12000);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, current) => {
+      if (!active) return;
+      clearTimeout(timer);
+      setAuthTimedOut(false);
       setSession(current);
+      if (event === 'SIGNED_OUT') setWorkspace(null);
       if (event === 'PASSWORD_RECOVERY') setNeedsPassword(true);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
     if (!userId) return;
     let active = true;
+    setError('');
+    const timer = setTimeout(() => {
+      if (!active) return;
+      active = false;
+      setError(
+        'O carregamento demorou demais. Confira sua conexão e tente novamente.',
+      );
+    }, 25000);
     loadWorkspace().then(
-      (data) => { if (active) setWorkspace({ userId, data }); },
-      () => { if (active) setError('Não foi possível carregar os orçamentos do Supabase.'); },
+      (data) => {
+        if (active) {
+          clearTimeout(timer);
+          setWorkspace({ userId, data });
+          setError('');
+        }
+      },
+      () => {
+        if (active) {
+          clearTimeout(timer);
+          setError(
+            'Não foi possível carregar os dados. Confira sua conexão e tente novamente.',
+          );
+        }
+      },
     );
-    return () => { active = false; };
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
   }, [userId, attempt]);
 
   async function signIn(event) {
@@ -63,13 +130,20 @@ export default function Workspace() {
     setError('');
     setNotice('');
     try {
-      const { error: failure } = await supabase.auth.signInWithPassword({
-        email: fields.get('email'),
-        password: fields.get('password'),
-      });
+      const { error: failure } = await withTimeout(
+        supabase.auth.signInWithPassword({
+          email: fields.get('email'),
+          password: fields.get('password'),
+        }),
+        15000,
+      );
       if (failure) throw failure;
-    } catch {
-      setError('Não foi possível entrar. Confira seu e-mail e sua senha.');
+    } catch (failure) {
+      setError(
+        failure.message === 'timeout'
+          ? 'A conexão demorou demais. Tente entrar novamente.'
+          : 'Não foi possível entrar. Confira seu e-mail e sua senha.',
+      );
     } finally {
       setBusy(false);
     }
@@ -77,15 +151,20 @@ export default function Workspace() {
 
   async function requestPasswordReset(event) {
     const email = event.currentTarget.form.elements.email.value.trim();
-    if (!email) return setError('Informe seu e-mail para receber o link de senha.');
+    if (!email)
+      return setError('Informe seu e-mail para receber o link de senha.');
     setBusy(true);
     setError('');
     setNotice('');
-    const { error: failure } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin,
-    });
+    const { error: failure } = await supabase.auth.resetPasswordForEmail(
+      email,
+      {
+        redirectTo: window.location.origin,
+      },
+    );
     setBusy(false);
-    if (failure) return setError('Não foi possível enviar o link. Tente novamente.');
+    if (failure)
+      return setError('Não foi possível enviar o link. Tente novamente.');
     setNotice('Enviamos um link para definir sua senha. Confira seu e-mail.');
   }
 
@@ -96,41 +175,162 @@ export default function Workspace() {
     const password = new FormData(event.currentTarget).get('password');
     const { error: failure } = await supabase.auth.updateUser({ password });
     setBusy(false);
-    if (failure) return setError('Não foi possível definir a senha. Tente outra senha.');
+    if (failure)
+      return setError('Não foi possível definir a senha. Tente outra senha.');
     setNeedsPassword(false);
-    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    window.history.replaceState(
+      null,
+      '',
+      window.location.pathname + window.location.search,
+    );
   }
 
   if (!supabase) return <App />;
-  if (userId && needsPassword) return <AuthScreen title="Defina sua senha" description="Crie uma senha para acessar seu espaço de trabalho." error={error}>
-    <form className="auth-form" onSubmit={setPassword}>
-      <label htmlFor="new-password">Nova senha</label>
-      <input id="new-password" name="password" type="password" autoComplete="new-password" minLength="8" placeholder="Mínimo de 8 caracteres" required />
-      <button className="auth-submit" disabled={busy}>Salvar senha <ArrowRight size={19} /></button>
-    </form>
-  </AuthScreen>;
+  if (session === undefined && authTimedOut)
+    return (
+      <AuthScreen
+        title="Não conseguimos iniciar seu acesso."
+        description="A verificação da sessão demorou demais. Tente carregar de novo ou entre novamente."
+        error=""
+      >
+        <div className="auth-recovery-actions">
+          <button
+            className="auth-submit"
+            onClick={() => window.location.reload()}
+          >
+            Tentar novamente <ArrowRight size={19} />
+          </button>
+          <button
+            className="auth-reset"
+            onClick={() => {
+              clearStoredSession();
+              window.location.reload();
+            }}
+          >
+            Entrar novamente
+          </button>
+        </div>
+      </AuthScreen>
+    );
+  if (userId && needsPassword)
+    return (
+      <AuthScreen
+        title="Defina sua senha"
+        description="Crie uma senha para acessar seu espaço de trabalho."
+        error={error}
+      >
+        <form className="auth-form" onSubmit={setPassword}>
+          <label htmlFor="new-password">Nova senha</label>
+          <input
+            id="new-password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            minLength="8"
+            placeholder="Mínimo de 8 caracteres"
+            required
+          />
+          <button className="auth-submit" disabled={busy}>
+            Salvar senha <ArrowRight size={19} />
+          </button>
+        </form>
+      </AuthScreen>
+    );
   if (userId && workspace?.userId === userId) {
-    return <App key={userId} initialData={workspace.data} userEmail={session.user.email} onSignOut={async () => {
-      const { error: failure } = await supabase.auth.signOut();
-      if (failure) return false;
-      setWorkspace(null);
-      return true;
-    }} />;
+    return (
+      <App
+        key={userId}
+        initialData={workspace.data}
+        userId={userId}
+        userEmail={session.user.email}
+        onSignOut={async () => {
+          const { error: failure } = await supabase.auth.signOut();
+          if (failure) return false;
+          setWorkspace(null);
+          return true;
+        }}
+      />
+    );
   }
-  return <AuthScreen title={session === null ? 'Bem-vindo de volta.' : 'Preparando seu espaço.'} description={session === null ? 'Entre com suas credenciais para continuar.' : 'Carregando seus orçamentos e informações.'} error={error}>
-    {session === null && <form className="auth-form" onSubmit={signIn}>
-      <label htmlFor="auth-email">E-mail</label>
-      <input id="auth-email" name="email" type="email" autoComplete="username" placeholder="seuemail@exemplo.com" required />
-      <label htmlFor="auth-password">Senha</label>
-      <input id="auth-password" name="password" type="password" autoComplete="current-password" placeholder="Digite sua senha" required />
-      <button className="auth-reset" type="button" disabled={busy} onClick={requestPasswordReset}>Esqueceu sua senha?</button>
-      <button className="auth-submit" disabled={busy}>{busy ? 'Entrando…' : 'Entrar no studio'} <ArrowRight size={19} /></button>
-    </form>}
-    {notice && <p className="auth-notice" role="status">{notice}</p>}
-    {session !== null && !error && <div className="auth-loading" role="status"><span /> Carregando…</div>}
-    {userId && error && <button className="auth-submit" onClick={() => {
-      setError('');
-      setAttempt(attempt + 1);
-    }}>Tentar novamente</button>}
-  </AuthScreen>;
+  return (
+    <AuthScreen
+      title={
+        session === null ? 'Bem-vindo de volta.' : 'Preparando seu espaço.'
+      }
+      description={
+        session === null
+          ? 'Entre com suas credenciais para continuar.'
+          : session === undefined
+            ? 'Verificando sua sessão.'
+            : 'Carregando os dados do studio.'
+      }
+      error={error}
+    >
+      {session === null && (
+        <form className="auth-form" onSubmit={signIn}>
+          <label htmlFor="auth-email">E-mail</label>
+          <input
+            id="auth-email"
+            name="email"
+            type="email"
+            autoComplete="username"
+            placeholder="seuemail@exemplo.com"
+            required
+          />
+          <label htmlFor="auth-password">Senha</label>
+          <input
+            id="auth-password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            placeholder="Digite sua senha"
+            required
+          />
+          <button
+            className="auth-reset"
+            type="button"
+            disabled={busy}
+            onClick={requestPasswordReset}
+          >
+            Esqueceu sua senha?
+          </button>
+          <button className="auth-submit" disabled={busy}>
+            {busy ? 'Entrando…' : 'Entrar no studio'} <ArrowRight size={19} />
+          </button>
+        </form>
+      )}
+      {notice && (
+        <p className="auth-notice" role="status">
+          {notice}
+        </p>
+      )}
+      {session !== null && !error && (
+        <div className="auth-loading" role="status">
+          <span /> Carregando…
+        </div>
+      )}
+      {userId && error && (
+        <button
+          className="auth-submit"
+          onClick={() => {
+            setError('');
+            setAttempt(attempt + 1);
+          }}
+        >
+          Tentar novamente
+        </button>
+      )}
+      {userId && error && (
+        <button
+          className="auth-reset"
+          onClick={() => {
+            clearStoredSession();
+            window.location.reload();
+          }}
+        >
+          Entrar novamente
+        </button>
+      )}
+    </AuthScreen>
+  );
 }

@@ -86,7 +86,7 @@ function vehiclesFromData(data) {
   return [...records.values()].sort((a, b) => a.model.localeCompare(b.model));
 }
 
-export default function App({ initialData, onSignOut, userEmail }) {
+export default function App({ initialData, onSignOut, userEmail, userId }) {
   const [data, setData] = useState(() => initialData ?? loadData());
   const dataRef = useRef(data);
   const savingQuote = useRef(false);
@@ -347,6 +347,7 @@ export default function App({ initialData, onSignOut, userEmail }) {
       return (
         <OrdersPage
           orders={data.orders}
+          userId={userId}
           appointments={data.appointments}
           quotes={data.quotes}
           clients={clients}

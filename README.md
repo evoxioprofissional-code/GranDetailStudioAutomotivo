@@ -10,6 +10,7 @@ Sistema interno responsivo para gestão do studio da Gran Detail.
 - cadastro de clientes e veículos, inclusive a partir de orçamentos;
 - lista, busca, criação, edição e duplicação de orçamentos;
 - ordens de serviço com vínculo opcional a orçamentos aprovados ou criação automática a partir de um agendamento;
+- fotos privadas de antes e depois em cada ordem, com galeria e comparação visual;
 - registro de recebimentos com vínculo opcional a ordens de serviço;
 - lista de clientes sem atendimento concluído há mais de 30 dias;
 - preparação de mensagens para WhatsApp;

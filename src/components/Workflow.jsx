@@ -1,4 +1,10 @@
-import { ArrowLeft, ArrowRight, CalendarDays, Wrench } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowRight,
+  CalendarDays,
+  Camera,
+  Wrench,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { dateBR } from '../lib/data';
 import {
@@ -87,7 +93,12 @@ export default function Workflow({
           <button
             key={stage}
             type="button"
-            onClick={() => boardRef.current?.scrollTo({ left: index * 257, behavior: 'smooth' })}
+            onClick={() =>
+              boardRef.current?.scrollTo({
+                left: index * 257,
+                behavior: 'smooth',
+              })
+            }
           >
             <b>{visible.filter((item) => item.stage === stage).length}</b>
             <span>{stage}</span>
@@ -133,6 +144,13 @@ export default function Workflow({
                     <p>{item.service}</p>
                     {item.vehicle && (
                       <small className="workflow-vehicle">{item.vehicle}</small>
+                    )}
+                    {item.photos?.length > 0 && (
+                      <small className="workflow-vehicle">
+                        <Camera size={13} /> {item.photos.length}{' '}
+                        {item.photos.length === 1 ? 'foto' : 'fotos'} de antes e
+                        depois
+                      </small>
                     )}
                     <div className="workflow-card-foot">
                       <span>{dateBR(item.date)}</span>
